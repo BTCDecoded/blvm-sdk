@@ -168,12 +168,12 @@ pub type GovernanceResult<T> = Result<T, GovernanceError>;
 
 ## CLI Tools
 
-### btcdecoded-keygen
+### bllvm-keygen
 
 Generate governance keypairs.
 
 ```bash
-btcdecoded-keygen [OPTIONS]
+bllvm-keygen [OPTIONS]
 
 Options:
     -o, --output <OUTPUT>    Output file for the keypair [default: governance.key]
@@ -182,12 +182,12 @@ Options:
     --show-private          Show private key in output
 ```
 
-### btcdecoded-sign
+### bllvm-sign
 
 Sign governance messages.
 
 ```bash
-btcdecoded-sign [OPTIONS] <COMMAND>
+bllvm-sign [OPTIONS] <COMMAND>
 
 Options:
     -o, --output <OUTPUT>    Output file for the signature [default: signature.txt]
@@ -200,12 +200,12 @@ Commands:
     budget                  Sign a budget decision message
 ```
 
-### btcdecoded-verify
+### bllvm-verify
 
 Verify governance signatures.
 
 ```bash
-btcdecoded-verify [OPTIONS] <COMMAND>
+bllvm-verify [OPTIONS] <COMMAND>
 
 Options:
     -f, --format <FORMAT>    Output format (text, json) [default: text]

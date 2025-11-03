@@ -1,4 +1,4 @@
-//! # BTCDecoded Verifier
+//! # Bitcoin Commons BLLVM Verifier
 //!
 //! Verify governance signatures and multisig thresholds.
 
@@ -11,7 +11,7 @@ use std::path::Path;
 
 /// Verify governance signatures
 #[derive(Parser, Debug)]
-#[command(name = "btcdecoded-verify")]
+#[command(name = "bllvm-verify")]
 #[command(about = "Verify governance signatures and multisig thresholds")]
 struct Args {
     /// Output format (text, json)

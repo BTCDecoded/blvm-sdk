@@ -1,4 +1,4 @@
-//! # BTCDecoded Key Generator
+//! # Bitcoin Commons BLLVM Key Generator
 //!
 //! Generate governance keypairs for Bitcoin governance operations.
 
@@ -10,8 +10,8 @@ use std::fs;
 
 /// Generate governance keypairs
 #[derive(Parser, Debug)]
-#[command(name = "btcdecoded-keygen")]
-#[command(about = "Generate governance keypairs for Bitcoin governance operations")]
+#[command(name = "bllvm-keygen")]
+#[command(about = "Generate governance keypairs for Bitcoin Commons governance operations")]
 struct Args {
     /// Output file for the keypair
     #[arg(short, long, default_value = "governance.key")]

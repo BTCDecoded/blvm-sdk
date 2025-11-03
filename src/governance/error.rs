@@ -45,6 +45,14 @@ pub enum GovernanceError {
     /// Invalid signature format
     #[error("Invalid signature format: {0}")]
     InvalidSignatureFormat(String),
+
+    /// Invalid input data
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    /// Feature not yet implemented
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }
 
 

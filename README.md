@@ -31,9 +31,9 @@ User-Composed Bitcoin Stacks
 - **Message formats** for releases, module approvals, and budget decisions
 
 ### CLI Tools
-- `btcdecoded-keygen` - Generate governance keypairs
-- `btcdecoded-sign` - Sign governance messages
-- `btcdecoded-verify` - Verify signatures and multisig thresholds
+- `bllvm-keygen` - Generate governance keypairs
+- `bllvm-sign` - Sign governance messages
+- `bllvm-verify` - Verify signatures and multisig thresholds
 
 ### Composition Framework (Future)
 - **Declarative node composition** from modules
@@ -70,17 +70,17 @@ let valid = multisig.verify(&message.to_signing_bytes(), &[signature])?;
 
 ```bash
 # Generate a keypair
-btcdecoded-keygen --output alice.key --format pem
+bllvm-keygen --output alice.key --format pem
 
 # Sign a release
-btcdecoded-sign release \
+bllvm-sign release \
   --version v1.0.0 \
   --commit abc123 \
   --key alice.key \
   --output signature.txt
 
 # Verify signatures
-btcdecoded-verify release \
+bllvm-verify release \
   --version v1.0.0 \
   --commit abc123 \
   --signatures sig1.txt,sig2.txt,sig3.txt,sig4.txt,sig5.txt,sig6.txt \
@@ -91,7 +91,7 @@ btcdecoded-verify release \
 ## Design Principles
 
 1. **Governance Crypto is Reusable:** Clean library API for external consumers
-2. **No GitHub Logic:** SDK is pure crypto + composition, not enforcement
+2. **No GitHub Logic:** SDK is pure cryptography + composition, not enforcement
 3. **Bitcoin-Compatible:** Use Bitcoin message signing standards
 4. **Test Everything:** Governance crypto needs 100% test coverage
 5. **Document for Consumers:** governance-app developers are the customer

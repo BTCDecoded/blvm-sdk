@@ -1,6 +1,6 @@
-//! # BTCDecoded Signer
+//! # Bitcoin Commons BLLVM Signer
 //!
-//! Sign governance messages for Bitcoin governance operations.
+//! Sign governance messages for Bitcoin Commons governance operations.
 
 use clap::{Parser, Subcommand};
 use developer_sdk::cli::output::{OutputFormat, OutputFormatter};
@@ -11,8 +11,8 @@ use std::path::Path;
 
 /// Sign governance messages
 #[derive(Parser, Debug)]
-#[command(name = "btcdecoded-sign")]
-#[command(about = "Sign governance messages for Bitcoin governance operations")]
+#[command(name = "bllvm-sign")]
+#[command(about = "Sign governance messages for Bitcoin Commons governance operations")]
 struct Args {
     /// Output file for the signature
     #[arg(short, long, default_value = "signature.txt")]

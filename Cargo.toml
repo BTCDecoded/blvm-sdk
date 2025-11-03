@@ -2,8 +2,8 @@
 name = "developer-sdk"
 version = "0.1.0"
 edition = "2021"
-authors = ["BTCDecoded Contributors"]
-description = "Governance infrastructure and composition framework for Bitcoin"
+authors = ["Bitcoin Commons Contributors"]
+description = "Bitcoin Commons software developer kit, governance infrastructure and composition framework for Bitcoin"
 license = "MIT"
 repository = "https://github.com/BTCDecoded/developer-sdk"
 homepage = "https://github.com/BTCDecoded/developer-sdk"
@@ -15,11 +15,14 @@ categories = ["cryptography", "development-tools"]
 # Governance cryptography (Bitcoin-compatible)
 secp256k1 = { version = "=0.28.2", features = ["rand", "global-context"] }
 bitcoin = "=0.31.2"  # For message signing standards
-sha2 = "=0.10.9"
+sha2 = "=0.10.9"  # SHA256 for checksums, SHA512 for seed derivation
+hmac = "=0.12.1"
+ripemd = "=0.1.3"
+pbkdf2 = "=0.12.2"  # PBKDF2-SHA512 for BIP39 seed derivation
 
 # Serialization
-serde = { version = "=1.0.226", features = ["derive"] }
-serde_json = "=1.0.145"
+serde = { version = "=1.0.193", features = ["derive"] }
+serde_json = "=1.0.108"
 
 # Error handling
 thiserror = "=1.0.69"
@@ -37,19 +40,28 @@ chrono = { version = "=0.4.35", features = ["serde"] }
 # CLI dependencies
 clap = { version = "=4.4.11", features = ["derive"] }
 
+# Composition framework dependencies
+toml = "=0.8.2"
+reference-node = { path = "../reference-node" }
+tokio = { version = "=1.35.1", features = ["rt", "macros", "sync"] }
+
 [dev-dependencies]
 # Testing
 criterion = "=0.5.1"  # Benchmarking
 tempfile = "=3.8.1"  # Temporary files for tests
 
 [[bin]]
-name = "btcdecoded-keygen"
-path = "src/bin/btcdecoded-keygen.rs"
+name = "bllvm-keygen"
+path = "src/bin/bllvm-keygen.rs"
 
 [[bin]]
-name = "btcdecoded-sign"
-path = "src/bin/btcdecoded-sign.rs"
+name = "bllvm-sign"
+path = "src/bin/bllvm-sign.rs"
 
 [[bin]]
-name = "btcdecoded-verify"
-path = "src/bin/btcdecoded-verify.rs"
+name = "bllvm-verify"
+path = "src/bin/bllvm-verify.rs"
+
+[[bin]]
+name = "bllvm-compose"
+path = "src/bin/bllvm-compose.rs"

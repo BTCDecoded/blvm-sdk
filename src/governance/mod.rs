@@ -14,6 +14,10 @@ pub mod messages;
 pub mod multisig;
 pub mod signatures;
 pub mod verification;
+pub mod bip32;
+pub mod bip39;
+pub mod bip44;
+pub mod psbt;
 
 // Re-export main types
 pub use error::{GovernanceError, GovernanceResult};

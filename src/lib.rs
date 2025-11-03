@@ -23,9 +23,9 @@
 //! - **Message formats** for releases, module approvals, and budget decisions
 //!
 //! ### CLI Tools
-//! - `btcdecoded-keygen` - Generate governance keypairs
-//! - `btcdecoded-sign` - Sign governance messages
-//! - `btcdecoded-verify` - Verify signatures and multisig thresholds
+//! - `bllvm-keygen` - Generate governance keypairs
+//! - `bllvm-sign` - Sign governance messages
+//! - `bllvm-verify` - Verify signatures and multisig thresholds
 //!
 //! ## Quick Start
 //!
@@ -58,6 +58,7 @@
 
 pub mod cli;
 pub mod governance;
+pub mod composition;
 
 // Re-export main types for convenience
 pub use governance::{
@@ -67,3 +68,10 @@ pub use governance::{
 
 // Re-export governance functions
 pub use governance::signatures::{sign_message, verify_signature};
+
+// Re-export composition framework
+pub use composition::{
+    ModuleRegistry, ModuleLifecycle, NodeComposer, NodeConfig,
+    ModuleInfo, ModuleSource, ModuleStatus, ModuleHealth,
+    NodeSpec, ModuleSpec, ComposedNode, NetworkType,
+};
