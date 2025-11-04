@@ -1,4 +1,4 @@
-# BTCDecoded Developer SDK
+# Bitcoin Commons Developer SDK
 
 **Governance infrastructure and composition framework for Bitcoin.**
 
@@ -6,7 +6,7 @@ This crate provides the **institutional layer** for Bitcoin governance, offering
 
 ## Architecture Position
 
-This is **Tier 5** of the 5-tier BTCDecoded architecture:
+This is **Tier 5** of the 5-tier Bitcoin Commons architecture (BLLVM technology stack):
 
 ```
 1. Orange Paper (mathematical foundation)

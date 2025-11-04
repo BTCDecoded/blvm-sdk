@@ -16,9 +16,17 @@ Thumbs.db
 /book/
 /doc/
 
-# Coverage
+# Coverage reports and profiling
+/coverage/
+/coverage-final/
+/coverage-lib/
+/target/tarpaulin/
+*.tarpaulin
+*.profraw
+*.profdata
+/cobertura.xml
+/lcov.info
 tarpaulin-report.html
-lcov.info
 
 # Benchmarks
 criterion/
