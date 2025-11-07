@@ -2,6 +2,8 @@
 
 **Governance infrastructure and composition framework for Bitcoin.**
 
+> **For verified system status**: See [SYSTEM_STATUS.md](https://github.com/BTCDecoded/.github/blob/main/SYSTEM_STATUS.md) in the BTCDecoded organization repository.
+
 This crate provides the **institutional layer** for Bitcoin governance, offering reusable governance primitives and a composition framework for building alternative Bitcoin implementations.
 
 ## Architecture Position
