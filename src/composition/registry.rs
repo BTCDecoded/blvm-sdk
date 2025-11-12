@@ -154,9 +154,10 @@ impl ModuleRegistry {
         let all_discovered = discovery.discover_modules()
             .map_err(|e| CompositionError::from(e))?;
         
-        // Filter to only requested modules
+        // Filter to only requested modules and convert to owned values
         let requested: Vec<_> = all_discovered.iter()
             .filter(|d| module_names.contains(&d.manifest.name))
+            .cloned()
             .collect();
         
         let resolution = RefModuleDependencies::resolve(&requested)

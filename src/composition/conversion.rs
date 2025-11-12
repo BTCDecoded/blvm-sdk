@@ -80,7 +80,7 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
             RefModuleError::OperationError(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(msg)
             }
-            RefModuleError::DependencyError(msg) => {
+            RefModuleError::DependencyMissing(msg) => {
                 crate::composition::types::CompositionError::DependencyResolutionFailed(msg)
             }
             RefModuleError::PermissionDenied(msg) => {
@@ -93,9 +93,37 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
                     format!("IPC error: {}", msg)
                 )
             }
-            RefModuleError::ProcessError(msg) => {
+            RefModuleError::InitializationError(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(
-                    format!("Process error: {}", msg)
+                    format!("Initialization error: {}", msg)
+                )
+            }
+            RefModuleError::VersionIncompatible(msg) => {
+                crate::composition::types::CompositionError::InstallationFailed(
+                    format!("Version incompatible: {}", msg)
+                )
+            }
+            RefModuleError::ModuleCrashed(msg) => {
+                crate::composition::types::CompositionError::InstallationFailed(
+                    format!("Module crashed: {}", msg)
+                )
+            }
+            RefModuleError::SerializationError(msg) => {
+                crate::composition::types::CompositionError::SerializationError(msg)
+            }
+            RefModuleError::RateLimitExceeded(msg) => {
+                crate::composition::types::CompositionError::InstallationFailed(
+                    format!("Rate limit exceeded: {}", msg)
+                )
+            }
+            RefModuleError::Timeout => {
+                crate::composition::types::CompositionError::InstallationFailed(
+                    "Timeout waiting for module response".to_string()
+                )
+            }
+            RefModuleError::ResourceLimitExceeded(msg) => {
+                crate::composition::types::CompositionError::InstallationFailed(
+                    format!("Resource limit exceeded: {}", msg)
                 )
             }
         }
