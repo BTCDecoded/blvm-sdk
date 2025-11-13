@@ -333,6 +333,10 @@ jobs:
           mv _temp-protocol-engine ../bllvm-protocol
           mv _temp-consensus-proof ../bllvm-consensus
           mv _temp-node ../bllvm-node
+          echo "✅ Dependencies moved successfully"
+          ls -la .. | grep bllvm
+          echo "Verifying bllvm-node exists:"
+          ls -la ../bllvm-node/Cargo.toml || echo "ERROR: bllvm-node/Cargo.toml not found!"
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
