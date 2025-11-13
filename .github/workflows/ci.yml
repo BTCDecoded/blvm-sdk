@@ -319,12 +319,20 @@ jobs:
           repository: BTCDecoded/bllvm-consensus
           path: _temp-consensus-proof
       
+      - name: Checkout bllvm-node dependency
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/bllvm-node
+          path: _temp-node
+      
       - name: Move dependencies to parent directory
         run: |
           if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
           if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
+          if [ -d "../bllvm-node" ]; then rm -rf ../bllvm-node; fi
           mv _temp-protocol-engine ../bllvm-protocol
           mv _temp-consensus-proof ../bllvm-consensus
+          mv _temp-node ../bllvm-node
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
