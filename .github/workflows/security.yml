@@ -13,6 +13,47 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Checkout bllvm-protocol dependency
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/bllvm-protocol
+          path: _temp-protocol-engine
+      
+      - name: Checkout bllvm-consensus dependency
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/bllvm-consensus
+          path: _temp-consensus-proof
+      
+      - name: Checkout bllvm-node dependency
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/bllvm-node
+          path: _temp-node
+      
+      - name: Move dependencies to parent directory
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Workspace: ${{ github.workspace }}"
+          echo "Listing current directory:"
+          ls -la
+          echo "Listing parent directory:"
+          ls -la .. || true
+          echo "Checking for temp directories:"
+          ls -la _temp-* || echo "No _temp-* directories found"
+          if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
+          if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
+          if [ -d "../bllvm-node" ]; then rm -rf ../bllvm-node; fi
+          if [ -d "_temp-protocol-engine" ]; then mv _temp-protocol-engine ../bllvm-protocol; else echo "ERROR: _temp-protocol-engine not found!"; exit 1; fi
+          if [ -d "_temp-consensus-proof" ]; then mv _temp-consensus-proof ../bllvm-consensus; else echo "ERROR: _temp-consensus-proof not found!"; exit 1; fi
+          if [ -d "_temp-node" ]; then mv _temp-node ../bllvm-node; else echo "ERROR: _temp-node not found!"; exit 1; fi
+          echo "✅ Dependencies moved successfully"
+          echo "Listing parent directory after move:"
+          ls -la .. | grep bllvm || echo "No bllvm directories found in parent"
+          echo "Verifying bllvm-node exists:"
+          if [ -f "../bllvm-node/Cargo.toml" ]; then echo "✅ bllvm-node/Cargo.toml found"; else echo "ERROR: bllvm-node/Cargo.toml not found!"; exit 1; fi
+      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
