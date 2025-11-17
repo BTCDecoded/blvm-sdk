@@ -2,8 +2,8 @@
 //!
 //! Complete multisig workflow example.
 
-use developer_sdk::governance::{GovernanceKeypair, GovernanceMessage, Multisig};
-use developer_sdk::{sign_message, verify_signature};
+use bllvm_sdk::governance::{GovernanceKeypair, GovernanceMessage, Multisig};
+use bllvm_sdk::{sign_message, verify_signature};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Multisig Workflow Example ===\n");
