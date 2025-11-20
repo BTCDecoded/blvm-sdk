@@ -30,7 +30,7 @@
 //! ## Quick Start
 //!
 //! ```rust
-//! use developer_sdk::{
+//! use bllvm_sdk::{
 //!     GovernanceKeypair, GovernanceMessage, Multisig, sign_message
 //! };
 //!
