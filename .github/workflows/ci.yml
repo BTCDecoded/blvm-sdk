@@ -313,3 +313,266 @@ jobs:
           if [ -d "./target" ] && [ "$TARGET_CACHE_DIR" != "" ]; then
             rsync -a --delete "./target/" "$TARGET_CACHE_DIR/" || true
           fi
+
+  release:
+    name: Release
+    needs: build
+    runs-on: [self-hosted, Linux, X64, builds]
+    if: |
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      !contains(github.event.head_commit.message, '[skip release]')
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+      
+      - name: Determine version
+        id: version
+        run: |
+          # Auto-increment patch version from Cargo.toml
+          # Extract only the package version (first version = after [package])
+          CURRENT=$(grep -A 10 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
+          if [ -z "$CURRENT" ]; then
+            echo "❌ Could not determine current version from Cargo.toml"
+            echo "Debug: Looking for version in [package] section"
+            grep -A 10 '^\[package\]' Cargo.toml | head -10
+            exit 1
+          fi
+          
+          echo "Current version: ${CURRENT}"
+          
+          # Validate version format (should be X.Y.Z)
+          if ! echo "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid version format: ${CURRENT} (expected X.Y.Z)"
+            exit 1
+          fi
+          
+          # Increment patch version (X.Y.Z -> X.Y.(Z+1))
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          
+          # Validate components are numeric
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]] || ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "❌ Version components must be numeric: ${MAJOR}.${MINOR}.${PATCH}"
+            exit 1
+          fi
+          
+          PATCH=$((PATCH + 1))
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          VERSION_TAG="v${VERSION}"
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
+          echo "✅ Releasing version: ${VERSION_TAG}"
+      
+      - name: Get latest bllvm-node version from crates.io
+        id: node-version
+        run: |
+          NODE_VER=$(cargo search bllvm-node --limit 1 2>/dev/null | head -1 | sed -E 's/^bllvm-node = "([^"]+)".*/\1/' || echo "")
+          if [ -z "$NODE_VER" ]; then
+            echo "❌ bllvm-node not found on crates.io. It must be published first."
+            exit 1
+          fi
+          echo "version=${NODE_VER}" >> $GITHUB_OUTPUT
+          echo "Using bllvm-node version: ${NODE_VER}"
+      
+      - name: Update Cargo.toml to use crates.io dependencies
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NODE_VER="${{ steps.node-version.outputs.version }}"
+          
+          # Update version
+          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
+          
+          # Update bllvm-node dependency to use crates.io version
+          sed -i 's|bllvm-node = { path = "\.\./bllvm-node"|bllvm-node = "'"${NODE_VER}"'"|g' Cargo.toml
+          
+          echo "Updated Cargo.toml:"
+          echo "  version: ${VERSION}"
+          echo "  bllvm-node: ${NODE_VER}"
+          grep -E "^(version|bllvm-node)" Cargo.toml
+      
+      - name: Commit Cargo.toml changes for publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml
+          git commit -m "Bump version to ${{ steps.version.outputs.version }} and update dependencies for release" || true
+      
+      - name: Check for crates.io token
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "⚠️  CARGO_REGISTRY_TOKEN not set, skipping crate publication"
+            echo "   Set CARGO_REGISTRY_TOKEN secret to enable crate publishing"
+            exit 0
+          fi
+      
+      - name: Configure cargo for crates.io
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        run: |
+          cargo login "${CARGO_REGISTRY_TOKEN}"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Verify package
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        run: |
+          cargo package --list
+      
+      - name: Dry-run publish
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        run: |
+          cargo publish --dry-run
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Check if version already exists
+        if: env.CARGO_REGISTRY_TOKEN != ''
+        id: check-version
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
+          if cargo search "$CRATE_NAME" --limit 1 2>/dev/null | grep -q "v${VERSION}"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Version ${VERSION} already published for ${CRATE_NAME}"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "✅ Version ${VERSION} not yet published for ${CRATE_NAME}"
+          fi
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Publish to crates.io
+        if: |
+          env.CARGO_REGISTRY_TOKEN != '' &&
+          steps.check-version.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
+          echo "Publishing ${CRATE_NAME} v${VERSION} to crates.io..."
+          cargo publish --token "${CARGO_REGISTRY_TOKEN}"
+          echo "✅ Successfully published ${CRATE_NAME} v${VERSION}"
+          echo "Waiting 30 seconds for crates.io to index..."
+          sleep 30
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      
+      - name: Verify published crate is available
+        if: |
+          env.CARGO_REGISTRY_TOKEN != '' &&
+          steps.check-version.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
+          echo "Verifying ${CRATE_NAME} v${VERSION} is available on crates.io..."
+          
+          # Try to fetch the crate info
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            if cargo search "$CRATE_NAME" --limit 1 2>/dev/null | grep -q "v${VERSION}"; then
+              echo "✅ ${CRATE_NAME} v${VERSION} is now available on crates.io"
+              echo "📦 Crate page: https://crates.io/crates/${CRATE_NAME}/${VERSION}"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⏳ Waiting for crates.io to index (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 10
+              else
+                echo "⚠️  ${CRATE_NAME} v${VERSION} not yet visible on crates.io (may take a few minutes)"
+              fi
+            fi
+          done
+      
+      - name: Create git tag
+        run: |
+          VERSION_TAG="${{ steps.version.outputs.version_tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if tag already exists
+          if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
+            echo "⚠️  Tag ${VERSION_TAG} already exists, skipping tag creation"
+          else
+            git tag -a "$VERSION_TAG" -m "Release ${VERSION_TAG}"
+            git push origin "$VERSION_TAG"
+            echo "✅ Created and pushed tag ${VERSION_TAG}"
+          fi
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          VERSION_TAG="${{ steps.version.outputs.version_tag }}"
+          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
+          DESCRIPTION=$(grep -E '^description = ' Cargo.toml | sed -E 's/^description = "([^"]+)".*/\1/' || echo "Bitcoin SDK")
+          
+          # Get commit range for this release
+          if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            COMMIT_RANGE="${{ github.event.before }}..${{ github.sha }}"
+            COMMIT_COUNT=$(git rev-list --count "$COMMIT_RANGE" 2>/dev/null || echo "?")
+          else
+            COMMIT_RANGE="HEAD~10..HEAD"
+            COMMIT_COUNT="?"
+          fi
+          
+          cat > /tmp/release_notes.md << EOF
+          ## $VERSION_TAG
+          
+          **$DESCRIPTION**
+          
+          ### 📦 Installation
+          
+          Add to your \`Cargo.toml\`:
+          
+          \`\`\`toml
+          [dependencies]
+          $CRATE_NAME = "$VERSION"
+          \`\`\`
+          
+          Or install via cargo:
+          
+          \`\`\`bash
+          cargo add $CRATE_NAME@$VERSION
+          \`\`\`
+          
+          ### 🔗 Links
+          
+          - **Crates.io**: [${CRATE_NAME} v${VERSION}](https://crates.io/crates/${CRATE_NAME}/${VERSION})
+          - **Documentation**: [docs.rs/${CRATE_NAME}/${VERSION}](https://docs.rs/${CRATE_NAME}/${VERSION})
+          - **Repository**: [GitHub](https://github.com/${{ github.repository }})
+          
+          ### 📝 Changes
+          
+          This release includes $COMMIT_COUNT commits since the last release.
+          
+          **Published to crates.io**: ${{ steps.check-version.outputs.exists == 'false' && '✅ Yes' || '⚠️  Already exists or skipped' }}
+          
+          See [full commit history](https://github.com/${{ github.repository }}/compare/$COMMIT_RANGE) for details.
+          EOF
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          cat /tmp/release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version_tag }}
+          name: Release ${{ steps.version.outputs.version_tag }}
+          body: ${{ steps.release_notes.outputs.notes }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
