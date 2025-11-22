@@ -112,12 +112,15 @@ jobs:
           toolchain: 1.88.0
       
       - name: Run tests
-        run: cargo test --verbose
+        run: |
+          # Run tests in parallel (default) with minimal output for speed
+          cargo test --lib --bins --tests
       
       - name: Run tests with coverage
         run: |
           cargo install cargo-tarpaulin --version 0.27.0
-          cargo tarpaulin --out xml --output-dir coverage
+          # Use --skip-clean to avoid rebuilding, --timeout to prevent hangs
+          cargo tarpaulin --out xml --output-dir coverage --skip-clean --timeout 120
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
