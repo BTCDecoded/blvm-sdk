@@ -23,7 +23,7 @@ env:
 jobs:
   setup:
     name: Setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     outputs:
       cache-key: ${{ steps.setup-cache.outputs.cache-key }}
     steps:
@@ -69,7 +69,7 @@ jobs:
   test:
     name: Test
     needs: setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     steps:
       - uses: actions/checkout@v4
       
@@ -159,7 +159,7 @@ jobs:
   clippy:
     name: Clippy
     needs: setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     steps:
       - uses: actions/checkout@v4
       
@@ -195,7 +195,7 @@ jobs:
   fmt:
     name: Format
     needs: setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     steps:
       - uses: actions/checkout@v4
       
@@ -211,7 +211,7 @@ jobs:
   docs:
     name: Docs
     needs: setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     steps:
       - uses: actions/checkout@v4
       
@@ -249,7 +249,7 @@ jobs:
   security:
     name: Security
     needs: setup
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     steps:
       - uses: actions/checkout@v4
       
@@ -267,7 +267,7 @@ jobs:
   build:
     name: Build
     needs: [setup, test, clippy, fmt, docs, security]
-    runs-on: [self-hosted, linux, x64]
+    runs-on: [self-hosted, Linux, X64, builds]
     if: github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'repository_dispatch'
     steps:
       - uses: actions/checkout@v4
