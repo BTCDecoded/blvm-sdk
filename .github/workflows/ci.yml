@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
   pull_request:
     branches: [ main ]
   release:
@@ -26,8 +26,6 @@ jobs:
     runs-on: [self-hosted, linux, x64]
     outputs:
       cache-key: ${{ steps.setup-cache.outputs.cache-key }}
-      consensus-cache-key: ${{ steps.setup-cache.outputs.consensus-cache-key }}
-      protocol-cache-key: ${{ steps.setup-cache.outputs.protocol-cache-key }}
     steps:
       - name: Disk check
         run: |
@@ -39,62 +37,29 @@ jobs:
 
       - uses: actions/checkout@v4
       
-      - name: Checkout bllvm-protocol dependency
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-protocol
-          path: _temp-protocol-engine
-      
-      - name: Checkout consensus
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-consensus
-          path: _temp-consensus-proof
-      
-      - name: Move dependencies to parent directory
-        run: |
-          if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
-          if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
-          mv _temp-protocol-engine ../bllvm-protocol
-          mv _temp-consensus-proof ../bllvm-consensus
-      
       - name: Cache
         id: setup-cache
         run: |
           CACHE_ROOT="/tmp/runner-cache"
           
-          # Generate cache keys from Cargo.lock hashes
+          # Generate cache key from Cargo.lock hash
           DEPS_KEY=$(sha256sum Cargo.lock | cut -d' ' -f1)
-          CONSENSUS_DEPS_KEY=$(sha256sum ../bllvm-consensus/Cargo.lock | cut -d' ' -f1)
-          PROTOCOL_DEPS_KEY=$(sha256sum ../bllvm-protocol/Cargo.lock | cut -d' ' -f1)
           
           # Include toolchain version in cache key
           TOOLCHAIN=$(grep -E '^channel|rust-version' rust-toolchain.toml Cargo.toml 2>/dev/null | head -1 | sha256sum | cut -d' ' -f1 || echo "1.88.0")
           
           CACHE_KEY="${DEPS_KEY}-${TOOLCHAIN}"
-          CONSENSUS_CACHE_KEY="${CONSENSUS_DEPS_KEY}-${TOOLCHAIN}"
-          PROTOCOL_CACHE_KEY="${PROTOCOL_DEPS_KEY}-${TOOLCHAIN}"
           
           # Set up cache directories
           CARGO_CACHE_DIR="$CACHE_ROOT/cargo/$CACHE_KEY"
           TARGET_CACHE_DIR="$CACHE_ROOT/target/$CACHE_KEY"
-          CONSENSUS_TARGET_DIR="$CACHE_ROOT/bllvm-consensus-target/$CONSENSUS_CACHE_KEY"
-          PROTOCOL_TARGET_DIR="$CACHE_ROOT/bllvm-protocol-target/$PROTOCOL_CACHE_KEY"
           
           echo "CARGO_CACHE_DIR=$CARGO_CACHE_DIR" >> $GITHUB_ENV
           echo "TARGET_CACHE_DIR=$TARGET_CACHE_DIR" >> $GITHUB_ENV
-          echo "CONSENSUS_TARGET_DIR=$CONSENSUS_TARGET_DIR" >> $GITHUB_ENV
-          echo "PROTOCOL_TARGET_DIR=$PROTOCOL_TARGET_DIR" >> $GITHUB_ENV
           
           echo "cache-key=$CACHE_KEY" >> $GITHUB_OUTPUT
-          echo "consensus-cache-key=$CONSENSUS_CACHE_KEY" >> $GITHUB_OUTPUT
-          echo "protocol-cache-key=$PROTOCOL_CACHE_KEY" >> $GITHUB_OUTPUT
           
-          mkdir -p "$CARGO_CACHE_DIR"/{registry,git} "$TARGET_CACHE_DIR" "$CONSENSUS_TARGET_DIR" "$PROTOCOL_TARGET_DIR"
-          
-          echo "  - Main: ${CACHE_KEY:0:16}..."
-          echo "  - Consensus: ${CONSENSUS_CACHE_KEY:0:16}..."
-          echo "  - Protocol: ${PROTOCOL_CACHE_KEY:0:16}..."
+          mkdir -p "$CARGO_CACHE_DIR"/{registry,git} "$TARGET_CACHE_DIR"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -108,36 +73,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Checkout bllvm-protocol dependency
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-protocol
-          path: _temp-protocol-engine
-      
-      - name: Checkout consensus
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-consensus
-          path: _temp-consensus-proof
-      
-      - name: Move dependencies to parent directory
-        run: |
-          if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
-          if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
-          mv _temp-protocol-engine ../bllvm-protocol
-          mv _temp-consensus-proof ../bllvm-consensus
-      
       - name: Cache
         run: |
           CACHE_ROOT="/tmp/runner-cache"
           CACHE_KEY="${{ needs.setup.outputs.cache-key }}"
-          CONSENSUS_CACHE_KEY="${{ needs.setup.outputs.consensus-cache-key }}"
-          PROTOCOL_CACHE_KEY="${{ needs.setup.outputs.protocol-cache-key }}"
-          
           echo "CARGO_CACHE_DIR=$CACHE_ROOT/cargo/$CACHE_KEY" >> $GITHUB_ENV
           echo "TARGET_CACHE_DIR=$CACHE_ROOT/target/$CACHE_KEY" >> $GITHUB_ENV
-          echo "CONSENSUS_TARGET_DIR=$CACHE_ROOT/bllvm-consensus-target/$CONSENSUS_CACHE_KEY" >> $GITHUB_ENV
-          echo "PROTOCOL_TARGET_DIR=$CACHE_ROOT/bllvm-protocol-target/$PROTOCOL_CACHE_KEY" >> $GITHUB_ENV
       
       - name: Restore registry
         run: |
@@ -157,24 +98,6 @@ jobs:
             echo "💿 No Cargo git cache found"
           fi
       
-      - name: Restore consensus
-        run: |
-          if [ -d "$CONSENSUS_TARGET_DIR" ] && [ "$(ls -A $CONSENSUS_TARGET_DIR 2>/dev/null)" ]; then
-            mkdir -p ../bllvm-consensus/target
-            rsync -a --delete "$CONSENSUS_TARGET_DIR/" ../bllvm-consensus/target/ || true
-          else
-            echo "💿 No bllvm-consensus target cache found"
-          fi
-      
-      - name: Restore bllvm-protocol build artifacts
-        run: |
-          if [ -d "$PROTOCOL_TARGET_DIR" ] && [ "$(ls -A $PROTOCOL_TARGET_DIR 2>/dev/null)" ]; then
-            mkdir -p ../bllvm-protocol/target
-            rsync -a --delete "$PROTOCOL_TARGET_DIR/" ../bllvm-protocol/target/ || true
-          else
-            echo "💿 No bllvm-protocol target cache found"
-          fi
-      
       - name: Restore target
         run: |
           if [ -d "$TARGET_CACHE_DIR" ] && [ "$(ls -A $TARGET_CACHE_DIR 2>/dev/null)" ]; then
@@ -189,7 +112,17 @@ jobs:
           toolchain: 1.88.0
       
       - name: Run tests
-        run: cargo test --workspace --all-features --verbose
+        run: cargo test --verbose
+      
+      - name: Run tests with coverage
+        run: |
+          cargo install cargo-tarpaulin --version 0.27.0
+          cargo tarpaulin --out xml --output-dir coverage
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: coverage/cobertura.xml
       
       - name: Cache registry
         if: always()
@@ -205,25 +138,11 @@ jobs:
             rsync -a --delete "$HOME/.cargo/git/" "$CARGO_CACHE_DIR/git/" || true
           fi
       
-      - name: Cache consensus
-        if: always()
-        run: |
-          if [ -d "../bllvm-consensus/target" ] && [ "$CONSENSUS_TARGET_DIR" != "" ]; then
-            rsync -a --delete ../bllvm-consensus/target/ "$CONSENSUS_TARGET_DIR/" || true
-          fi
-      
-      - name: Cache bllvm-protocol build artifacts
-        if: always()
-        run: |
-          if [ -d "../bllvm-protocol/target" ] && [ "$PROTOCOL_TARGET_DIR" != "" ]; then
-            rsync -a --delete ../bllvm-protocol/target/ "$PROTOCOL_TARGET_DIR/" || true
-          fi
-      
       - name: Cache target
         if: always()
         run: |
           if [ -d "./target" ] && [ "$TARGET_CACHE_DIR" != "" ]; then
-            rsync -a --delete ./target/ "$TARGET_CACHE_DIR/" || true
+            rsync -a --delete "./target/" "$TARGET_CACHE_DIR/" || true
           fi
       
       - name: Cleanup
@@ -233,11 +152,9 @@ jobs:
           CACHE_ROOT="/tmp/runner-cache"
           find "$CACHE_ROOT/cargo" -maxdepth 1 -type d -mtime +1 2>/dev/null | head -n -5 | xargs rm -rf 2>/dev/null || true
           find "$CACHE_ROOT/target" -maxdepth 1 -type d -mtime +1 2>/dev/null | head -n -3 | xargs rm -rf 2>/dev/null || true
-          find "$CACHE_ROOT/bllvm-consensus-target" -maxdepth 1 -type d -mtime +1 2>/dev/null | head -n -3 | xargs rm -rf 2>/dev/null || true
-          find "$CACHE_ROOT/bllvm-protocol-target" -maxdepth 1 -type d -mtime +1 2>/dev/null | head -n -3 | xargs rm -rf 2>/dev/null || true
 
-  lint:
-    name: Lint
+  clippy:
+    name: Clippy
     needs: setup
     runs-on: [self-hosted, linux, x64]
     steps:
@@ -267,108 +184,39 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.88.0
-          components: clippy, rustfmt
+          components: clippy
       
       - name: Run clippy
-        run: cargo clippy --workspace --all-features -- -D warnings
-      
-      - name: Check formatting
-        run: cargo fmt -- --check
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-  security:
-    name: Security
+  fmt:
+    name: Format
     needs: setup
     runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
       
-      - name: Checkout bllvm-protocol dependency
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-protocol
-          path: _temp-protocol-engine
-      
-      - name: Checkout consensus
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-consensus
-          path: _temp-consensus-proof
-      
-      - name: Checkout bllvm-node dependency
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-node
-          path: _temp-node
-      
-      - name: Move dependencies to parent directory
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Workspace: ${{ github.workspace }}"
-          echo "Listing current directory:"
-          ls -la
-          echo "Listing parent directory:"
-          ls -la .. || true
-          echo "Checking for temp directories:"
-          ls -la _temp-* || echo "No _temp-* directories found"
-          if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
-          if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
-          if [ -d "../bllvm-node" ]; then rm -rf ../bllvm-node; fi
-          if [ -d "_temp-protocol-engine" ]; then mv _temp-protocol-engine ../bllvm-protocol; else echo "ERROR: _temp-protocol-engine not found!"; exit 1; fi
-          if [ -d "_temp-consensus-proof" ]; then mv _temp-consensus-proof ../bllvm-consensus; else echo "ERROR: _temp-consensus-proof not found!"; exit 1; fi
-          if [ -d "_temp-node" ]; then mv _temp-node ../bllvm-node; else echo "ERROR: _temp-node not found!"; exit 1; fi
-          echo "Listing parent directory after move:"
-          ls -la .. | grep bllvm || echo "No bllvm directories found in parent"
-          echo "Verifying bllvm-node exists:"
-      
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.89.0
+          toolchain: 1.88.0
+          components: rustfmt
       
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.22.0
-      
-      - name: Run security audit
-        run: cargo audit
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-  build:
-    name: Build
-    needs: [setup, test, lint, security]
+  docs:
+    name: Docs
+    needs: setup
     runs-on: [self-hosted, linux, x64]
-    if: github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'repository_dispatch'
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Checkout bllvm-protocol dependency
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-protocol
-          path: _temp-protocol-engine
-      
-      - name: Checkout consensus
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/bllvm-consensus
-          path: _temp-consensus-proof
-      
-      - name: Move dependencies to parent directory
-        run: |
-          if [ -d "../bllvm-protocol" ]; then rm -rf ../bllvm-protocol; fi
-          if [ -d "../bllvm-consensus" ]; then rm -rf ../bllvm-consensus; fi
-          mv _temp-protocol-engine ../bllvm-protocol
-          mv _temp-consensus-proof ../bllvm-consensus
       
       - name: Cache
         run: |
           CACHE_ROOT="/tmp/runner-cache"
           CACHE_KEY="${{ needs.setup.outputs.cache-key }}"
-          CONSENSUS_CACHE_KEY="${{ needs.setup.outputs.consensus-cache-key }}"
-          PROTOCOL_CACHE_KEY="${{ needs.setup.outputs.protocol-cache-key }}"
-          
           echo "CARGO_CACHE_DIR=$CACHE_ROOT/cargo/$CACHE_KEY" >> $GITHUB_ENV
-          echo "TARGET_CACHE_DIR=$CACHE_ROOT/target/$CACHE_KEY" >> $GITHUB_ENV
-          echo "CONSENSUS_TARGET_DIR=$CACHE_ROOT/bllvm-consensus-target/$CONSENSUS_CACHE_KEY" >> $GITHUB_ENV
-          echo "PROTOCOL_TARGET_DIR=$CACHE_ROOT/bllvm-protocol-target/$PROTOCOL_CACHE_KEY" >> $GITHUB_ENV
       
       - name: Restore registry
         run: |
@@ -384,18 +232,62 @@ jobs:
             rsync -a --delete "$CARGO_CACHE_DIR/git/" "$HOME/.cargo/git/" || true
           fi
       
-      - name: Restore consensus
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+      
+      - name: Build docs
+        run: cargo doc --no-deps
+      
+      - name: Check docs
+        run: cargo doc --no-deps --document-private-items
+
+  security:
+    name: Security
+    needs: setup
+    runs-on: [self-hosted, linux, x64]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.88.0
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --version 0.21.0 --locked
+      
+      - name: Run security audit
+        run: cargo audit
+
+  build:
+    name: Build
+    needs: [setup, test, clippy, fmt, docs, security]
+    runs-on: [self-hosted, linux, x64]
+    if: github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'repository_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Cache
         run: |
-          if [ -d "$CONSENSUS_TARGET_DIR" ] && [ "$(ls -A $CONSENSUS_TARGET_DIR 2>/dev/null)" ]; then
-            mkdir -p ../bllvm-consensus/target
-            rsync -a --delete "$CONSENSUS_TARGET_DIR/" ../bllvm-consensus/target/ || true
+          CACHE_ROOT="/tmp/runner-cache"
+          CACHE_KEY="${{ needs.setup.outputs.cache-key }}"
+          echo "CARGO_CACHE_DIR=$CACHE_ROOT/cargo/$CACHE_KEY" >> $GITHUB_ENV
+          echo "TARGET_CACHE_DIR=$CACHE_ROOT/target/$CACHE_KEY" >> $GITHUB_ENV
+      
+      - name: Restore registry
+        run: |
+          if [ -d "$CARGO_CACHE_DIR/registry" ] && [ "$(ls -A $CARGO_CACHE_DIR/registry 2>/dev/null)" ]; then
+            mkdir -p "$HOME/.cargo/registry"
+            rsync -a --delete "$CARGO_CACHE_DIR/registry/" "$HOME/.cargo/registry/" || true
           fi
       
-      - name: Restore bllvm-protocol build artifacts
+      - name: Restore git
         run: |
-          if [ -d "$PROTOCOL_TARGET_DIR" ] && [ "$(ls -A $PROTOCOL_TARGET_DIR 2>/dev/null)" ]; then
-            mkdir -p ../bllvm-protocol/target
-            rsync -a --delete "$PROTOCOL_TARGET_DIR/" ../bllvm-protocol/target/ || true
+          if [ -d "$CARGO_CACHE_DIR/git" ] && [ "$(ls -A $CARGO_CACHE_DIR/git 2>/dev/null)" ]; then
+            mkdir -p "$HOME/.cargo/git"
+            rsync -a --delete "$CARGO_CACHE_DIR/git/" "$HOME/.cargo/git/" || true
           fi
       
       - name: Restore target
@@ -410,213 +302,11 @@ jobs:
           toolchain: 1.88.0
       
       - name: Build
-        run: cargo build --workspace --release --all-features
-      
-      - name: Cache consensus
-        if: always()
-        run: |
-          if [ -d "../bllvm-consensus/target" ] && [ "$CONSENSUS_TARGET_DIR" != "" ]; then
-            rsync -a --delete ../bllvm-consensus/target/ "$CONSENSUS_TARGET_DIR/" || true
-          fi
-      
-      - name: Cache bllvm-protocol build artifacts
-        if: always()
-        run: |
-          if [ -d "../bllvm-protocol/target" ] && [ "$PROTOCOL_TARGET_DIR" != "" ]; then
-            rsync -a --delete ../bllvm-protocol/target/ "$PROTOCOL_TARGET_DIR/" || true
-          fi
+        run: cargo build --release
       
       - name: Cache target
         if: always()
         run: |
           if [ -d "./target" ] && [ "$TARGET_CACHE_DIR" != "" ]; then
-            rsync -a --delete ./target/ "$TARGET_CACHE_DIR/" || true
+            rsync -a --delete "./target/" "$TARGET_CACHE_DIR/" || true
           fi
-
-  release:
-    name: Release
-    needs: build
-    runs-on: [self-hosted, linux, x64]
-    if: |
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      !contains(github.event.head_commit.message, '[skip release]')
-    permissions:
-      contents: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.88.0
-      
-      - name: Determine version
-        id: version
-        run: |
-          # Auto-increment patch version from Cargo.toml
-          # Extract only the package version (first version = after [package])
-          CURRENT=$(grep -A 10 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
-          if [ -z "$CURRENT" ]; then
-            echo "❌ Could not determine current version from Cargo.toml"
-            echo "Debug: Looking for version in [package] section"
-            grep -A 10 '^\[package\]' Cargo.toml | head -10
-            exit 1
-          fi
-          
-          echo "Current version: ${CURRENT}"
-          
-          # Validate version format (should be X.Y.Z)
-          if ! echo "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "❌ Invalid version format: ${CURRENT} (expected X.Y.Z)"
-            exit 1
-          fi
-          
-          # Increment patch version (X.Y.Z -> X.Y.(Z+1))
-          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
-          MINOR=$(echo "$CURRENT" | cut -d. -f2)
-          PATCH=$(echo "$CURRENT" | cut -d. -f3)
-          
-          # Validate components are numeric
-          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]] || ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then
-            echo "❌ Version components must be numeric: ${MAJOR}.${MINOR}.${PATCH}"
-            exit 1
-          fi
-          
-          PATCH=$((PATCH + 1))
-          VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          VERSION_TAG="v${VERSION}"
-          
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "version_tag=${VERSION_TAG}" >> $GITHUB_OUTPUT
-          echo "✅ Releasing version: ${VERSION_TAG}"
-      
-      - name: Get latest bllvm-node version from crates.io
-        id: node-version
-        run: |
-          NODE_VER=$(cargo search bllvm-node --limit 1 2>/dev/null | head -1 | sed -E 's/^bllvm-node = "([^"]+)".*/\1/' || echo "")
-          if [ -z "$NODE_VER" ]; then
-            echo "❌ bllvm-node not found on crates.io. It must be published first."
-            exit 1
-          fi
-          echo "version=${NODE_VER}" >> $GITHUB_OUTPUT
-          echo "Using bllvm-node version: ${NODE_VER}"
-      
-      - name: Update Cargo.toml to use crates.io dependencies
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          NODE_VER="${{ steps.node-version.outputs.version }}"
-          
-          # Update version
-          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-          
-          # Update bllvm-node dependency to use crates.io version
-          sed -i 's|bllvm-node = { path = "\.\./bllvm-node"|bllvm-node = "'"${NODE_VER}"'"|g' Cargo.toml
-          
-          echo "Updated Cargo.toml:"
-          echo "  version: ${VERSION}"
-          echo "  bllvm-node: ${NODE_VER}"
-          grep -E "^(version|bllvm-node)" Cargo.toml
-      
-      - name: Commit Cargo.toml changes for publish
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Cargo.toml
-          git commit -m "Bump version to ${{ steps.version.outputs.version }} and update dependencies for release" || true
-      
-      - name: Check for crates.io token
-        run: |
-          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "⚠️  CARGO_REGISTRY_TOKEN not set, skipping crate publication"
-            echo "   Set CARGO_REGISTRY_TOKEN secret to enable crate publishing"
-            exit 0
-          fi
-      
-      - name: Configure cargo for crates.io
-        if: env.CARGO_REGISTRY_TOKEN != ''
-        run: |
-          cargo login "${CARGO_REGISTRY_TOKEN}"
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      
-      - name: Verify package
-        if: env.CARGO_REGISTRY_TOKEN != ''
-        run: |
-          cargo package --list
-      
-      - name: Dry-run publish
-        if: env.CARGO_REGISTRY_TOKEN != ''
-        run: |
-          cargo publish --dry-run
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      
-      - name: Check if version already exists
-        if: env.CARGO_REGISTRY_TOKEN != ''
-        id: check-version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
-          if cargo search "$CRATE_NAME" --limit 1 2>/dev/null | grep -q "v${VERSION}"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Version ${VERSION} already published for ${CRATE_NAME}"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "✅ Version ${VERSION} not yet published for ${CRATE_NAME}"
-          fi
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      
-      - name: Publish to crates.io
-        if: |
-          env.CARGO_REGISTRY_TOKEN != '' &&
-          steps.check-version.outputs.exists == 'false'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          CRATE_NAME=$(grep -E '^name = ' Cargo.toml | sed -E 's/^name = "([^"]+)".*/\1/')
-          echo "Publishing ${CRATE_NAME} v${VERSION} to crates.io..."
-          cargo publish --token "${CARGO_REGISTRY_TOKEN}"
-          echo "✅ Successfully published ${CRATE_NAME} v${VERSION}"
-          echo "Waiting 30 seconds for crates.io to index..."
-          sleep 30
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      
-      - name: Create git tag
-        run: |
-          VERSION_TAG="${{ steps.version.outputs.version_tag }}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Check if tag already exists
-          if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
-            echo "⚠️  Tag ${VERSION_TAG} already exists, skipping tag creation"
-          else
-            git tag -a "$VERSION_TAG" -m "Release ${VERSION_TAG}"
-            git push origin "$VERSION_TAG"
-            echo "✅ Created and pushed tag ${VERSION_TAG}"
-          fi
-      
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version_tag }}
-          name: Release ${{ steps.version.outputs.version_tag }}
-          body: |
-            ## ${{ steps.version.outputs.version_tag }}
-            
-            Automated release of bllvm-sdk.
-            
-            **Published to crates.io**: ${{ steps.check-version.outputs.exists == 'false' && '✅ Yes' || '⚠️  Already exists or skipped' }}
-            
-            ### Changes
-            See [commit history](https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
