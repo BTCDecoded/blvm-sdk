@@ -46,11 +46,9 @@ bllvm-node = { path = "../bllvm-node", package = "bllvm-node" }
 tokio = { version = "=1.48.0", features = ["rt", "macros", "sync"] }
 
 # Local development: Use local path dependencies instead of crates.io versions
+# Local development: Use .cargo/config.toml to override dependencies with local paths
 # This allows you to develop against local changes without publishing
-# Note: Patches apply to any version that matches the dependency requirement
-[patch.crates-io]
-bllvm-protocol = { path = "../bllvm-protocol" }
-bllvm-consensus = { path = "../bllvm-consensus" }
+# For CI jobs that checkout dependencies, .cargo/config.toml is created automatically
 
 [dev-dependencies]
 # Testing
