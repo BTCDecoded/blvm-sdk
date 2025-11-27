@@ -59,6 +59,7 @@
 pub mod cli;
 pub mod composition;
 pub mod governance;
+pub mod module;
 
 // Re-export main types for convenience
 pub use governance::{
@@ -73,4 +74,33 @@ pub use governance::signatures::{sign_message, verify_signature};
 pub use composition::{
     ComposedNode, ModuleHealth, ModuleInfo, ModuleLifecycle, ModuleRegistry, ModuleSource,
     ModuleSpec, ModuleStatus, NetworkType, NodeComposer, NodeConfig, NodeSpec,
+};
+
+// Re-export module development APIs
+pub use module::{
+    CorrelationId,
+    EventMessage,
+    EventPayload,
+    EventType,
+    MessageType,
+    // Traits
+    Module,
+    ModuleContext,
+    ModuleError,
+    // IPC
+    ModuleIpcClient,
+    // Manifest
+    ModuleManifest,
+    // IPC Protocol
+    ModuleMessage,
+    ModuleMetadata,
+    ModuleState,
+    NodeAPI,
+    // Security
+    Permission,
+    PermissionSet,
+    RequestMessage,
+    RequestPayload,
+    ResponseMessage,
+    ResponsePayload,
 };

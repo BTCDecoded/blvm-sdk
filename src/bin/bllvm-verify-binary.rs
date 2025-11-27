@@ -7,7 +7,7 @@
 
 use bllvm_sdk::cli::input::{parse_comma_separated, parse_threshold};
 use bllvm_sdk::cli::output::{OutputFormat, OutputFormatter};
-use bllvm_sdk::governance::{GovernanceMessage, Multisig, PublicKey, Signature};
+use bllvm_sdk::governance::{Multisig, PublicKey, Signature};
 use clap::{Parser, Subcommand};
 use sha2::{Digest, Sha256};
 use std::fs;

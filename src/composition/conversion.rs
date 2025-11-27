@@ -71,6 +71,11 @@ impl From<ModuleInfo> for RefModuleMetadata {
 impl From<RefModuleError> for crate::composition::types::CompositionError {
     fn from(err: RefModuleError) -> Self {
         match err {
+            RefModuleError::CryptoError(msg) => {
+                crate::composition::types::CompositionError::InstallationFailed(format!(
+                    "Crypto error: {msg}"
+                ))
+            }
             RefModuleError::ModuleNotFound(name) => {
                 crate::composition::types::CompositionError::ModuleNotFound(name)
             }

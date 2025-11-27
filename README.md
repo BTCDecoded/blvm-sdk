@@ -8,20 +8,15 @@ This crate provides the **institutional layer** for Bitcoin governance, offering
 
 ## Architecture Position
 
-This is **Tier 5** of the 5-tier Bitcoin Commons architecture (BLLVM technology stack):
+This is **Tier 5** of the 6-tier Bitcoin Commons architecture (BLLVM technology stack):
 
 ```
-1. Orange Paper (mathematical foundation)
+1. bllvm-spec (Orange Paper - mathematical foundation)
 2. bllvm-consensus (pure math implementation)
 3. bllvm-protocol (Bitcoin abstraction)
 4. bllvm-node (full node implementation)
 5. bllvm-sdk (composition + governance libraries) ← THIS CRATE
-   ↓ imports governance primitives
-governance-app (GitHub enforcement) ← FUTURE, separate repo
-   ↓
-Module Ecosystem (separate repos: Lightning, RSK, etc.)
-   ↓
-User-Composed Bitcoin Stacks
+6. bllvm-commons (governance enforcement - GitHub App)
 ```
 
 ## Core Components
