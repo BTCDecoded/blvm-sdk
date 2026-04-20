@@ -119,7 +119,11 @@ where
             integration.subscribe_events(event_types).await?;
 
             let mut event_rx = integration.event_receiver();
-            let invocation_rx = integration.invocation_receiver().unwrap();
+            let invocation_rx = integration.invocation_receiver().ok_or_else(|| {
+                ModuleError::IpcError(
+                    "Invocation receiver not available for this module integration".to_string(),
+                )
+            })?;
             let ctx = InvocationContext::with_node_api(db, node_api);
 
             loop {
@@ -207,7 +211,11 @@ where
             let module = Arc::new(module);
 
             let mut event_rx = integration.event_receiver();
-            let invocation_rx = integration.invocation_receiver().unwrap();
+            let invocation_rx = integration.invocation_receiver().ok_or_else(|| {
+                ModuleError::IpcError(
+                    "Invocation receiver not available for this module integration".to_string(),
+                )
+            })?;
             let ctx = InvocationContext::with_node_api(Arc::clone(&db), node_api);
 
             loop {
@@ -297,7 +305,11 @@ where
             }
 
             let mut event_rx = integration.event_receiver();
-            let invocation_rx = integration.invocation_receiver().unwrap();
+            let invocation_rx = integration.invocation_receiver().ok_or_else(|| {
+                ModuleError::IpcError(
+                    "Invocation receiver not available for this module integration".to_string(),
+                )
+            })?;
             let ctx = InvocationContext::with_node_api(Arc::clone(&db), Arc::clone(&node_api));
 
             loop {

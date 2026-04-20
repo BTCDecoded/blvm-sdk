@@ -2,6 +2,10 @@
 //!
 //! High-level module registry API for discovering, installing, updating,
 //! and removing modules. Wraps blvm-node module registry functionality.
+//!
+//! **Trust:** Use HTTPS registry URLs and a host you trust. The client enforces timeouts and
+//! response size limits; archive extraction uses safe path semantics under a destination directory.
+//! HTTPS pinning and organization allowlists are operator policy, not enforced here.
 
 use crate::composition::types::*;
 use blvm_node::module::registry::{
@@ -12,6 +16,84 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const SOURCE_FILE: &str = ".blvm-source.json";
+
+#[cfg(feature = "registry")]
+const REGISTRY_HTTP_TIMEOUT_SECS: u64 = 120;
+#[cfg(feature = "registry")]
+const REGISTRY_INDEX_MAX_BYTES: usize = 4 * 1024 * 1024;
+#[cfg(feature = "registry")]
+const REGISTRY_DOWNLOAD_MAX_BYTES: usize = 64 * 1024 * 1024;
+
+#[cfg(feature = "registry")]
+fn registry_http_client() -> Result<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(REGISTRY_HTTP_TIMEOUT_SECS))
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| {
+            CompositionError::InstallationFailed(format!("Failed to build HTTP client: {}", e))
+        })
+}
+
+#[cfg(feature = "registry")]
+fn enforce_max_response(label: &str, bytes: &[u8], max: usize) -> Result<()> {
+    if bytes.len() > max {
+        return Err(CompositionError::InstallationFailed(format!(
+            "{} response too large: {} bytes (max {})",
+            label,
+            bytes.len(),
+            max
+        )));
+    }
+    Ok(())
+}
+
+/// Limits for DoS protection when unpacking registry `.tar.gz` archives.
+#[cfg(feature = "registry")]
+const MAX_TAR_ENTRIES: usize = 100_000;
+#[cfg(feature = "registry")]
+const MAX_TAR_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Extract a gzip-compressed tar into `dest_dir` without invoking the system `tar` binary.
+/// Uses [`tar::Entry::unpack_in`] so paths cannot escape `dest_dir` (rejects `..` and absolute paths).
+#[cfg(feature = "registry")]
+fn extract_tar_gz_safe(archive_path: &Path, dest_dir: &Path) -> Result<()> {
+    use flate2::read::GzDecoder;
+    use std::fs::File;
+    use tar::Archive;
+
+    let file = File::open(archive_path).map_err(|e| {
+        CompositionError::InstallationFailed(format!("Open module archive: {}", e))
+    })?;
+    let dec = GzDecoder::new(file);
+    let mut archive = Archive::new(dec);
+    let mut count = 0usize;
+    for entry in archive.entries().map_err(|e| {
+        CompositionError::InstallationFailed(format!("Read tar archive: {}", e))
+    })? {
+        let mut entry = entry.map_err(|e| {
+            CompositionError::InstallationFailed(format!("Tar entry: {}", e))
+        })?;
+        count += 1;
+        if count > MAX_TAR_ENTRIES {
+            return Err(CompositionError::InstallationFailed(format!(
+                "Too many files in module archive (max {})",
+                MAX_TAR_ENTRIES
+            )));
+        }
+        let size = entry.size();
+        if size > MAX_TAR_ENTRY_BYTES {
+            return Err(CompositionError::InstallationFailed(format!(
+                "Module archive member too large: {} bytes (max {})",
+                size, MAX_TAR_ENTRY_BYTES
+            )));
+        }
+        entry
+            .unpack_in(dest_dir)
+            .map_err(|e| CompositionError::InstallationFailed(format!("Extract failed: {}", e)))?;
+    }
+    Ok(())
+}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ModuleSourceFile {
@@ -200,14 +282,20 @@ impl ModuleRegistry {
 
     #[cfg(feature = "registry")]
     fn install_from_registry(&mut self, url: &str, name: Option<&str>) -> Result<ModuleInfo> {
-        let index: serde_json::Value = reqwest::blocking::get(url)
+        let client = registry_http_client()?;
+        let index_resp = client
+            .get(url)
+            .send()
             .map_err(|e| {
                 CompositionError::InstallationFailed(format!("Registry fetch failed: {}", e))
-            })?
-            .json()
-            .map_err(|e| {
-                CompositionError::InstallationFailed(format!("Registry JSON parse failed: {}", e))
             })?;
+        let index_bytes = index_resp.bytes().map_err(|e| {
+            CompositionError::InstallationFailed(format!("Registry read failed: {}", e))
+        })?;
+        enforce_max_response("Registry index", &index_bytes, REGISTRY_INDEX_MAX_BYTES)?;
+        let index: serde_json::Value = serde_json::from_slice(&index_bytes).map_err(|e| {
+            CompositionError::InstallationFailed(format!("Registry JSON parse failed: {}", e))
+        })?;
 
         let modules = index
             .get("modules")
@@ -248,36 +336,22 @@ impl ModuleRegistry {
                 CompositionError::InstallationFailed("Module missing download_url".to_string())
             })?;
 
-        let bytes = reqwest::blocking::get(download_url)
-            .map_err(|e| CompositionError::InstallationFailed(format!("Download failed: {}", e)))?
+        let dl_resp = client
+            .get(download_url)
+            .send()
+            .map_err(|e| CompositionError::InstallationFailed(format!("Download failed: {}", e)))?;
+        let bytes = dl_resp
             .bytes()
-            .map_err(|e| {
-                CompositionError::InstallationFailed(format!("Download read failed: {}", e))
-            })?;
+            .map_err(|e| CompositionError::InstallationFailed(format!("Download read failed: {}", e)))?;
+        enforce_max_response("Module archive", &bytes, REGISTRY_DOWNLOAD_MAX_BYTES)?;
 
         let dest_dir = self.modules_dir.join(name);
         fs::create_dir_all(&dest_dir)?;
         let archive_path = dest_dir.join("module.tar.gz");
         fs::write(&archive_path, &bytes).map_err(CompositionError::IoError)?;
 
-        // Extract tar.gz using system tar (no extra deps)
-        let status = std::process::Command::new("tar")
-            .args([
-                "-xzf",
-                archive_path.to_str().unwrap(),
-                "-C",
-                dest_dir.to_str().unwrap(),
-            ])
-            .status()
-            .map_err(|e| {
-                CompositionError::InstallationFailed(format!("tar extraction failed: {}", e))
-            })?;
+        extract_tar_gz_safe(&archive_path, &dest_dir)?;
         fs::remove_file(&archive_path).ok();
-        if !status.success() {
-            return Err(CompositionError::InstallationFailed(
-                "tar extraction failed".to_string(),
-            ));
-        }
 
         self.discover_modules()?;
         let info = self.get_module(name, None)?;

@@ -122,12 +122,12 @@ impl blvm_node::storage::database::Tree for ModuleTreeAdapter {
         self.0.iter()
     }
 
-    fn batch(&self) -> Box<dyn blvm_node::storage::database::BatchWriter + '_> {
-        Box::new(SimpleBatchWriter {
+    fn batch(&self) -> anyhow::Result<Box<dyn blvm_node::storage::database::BatchWriter + '_>> {
+        Ok(Box::new(SimpleBatchWriter {
             tree: self.0.clone(),
             puts: Vec::new(),
             deletes: Vec::new(),
-        })
+        }))
     }
 }
 
