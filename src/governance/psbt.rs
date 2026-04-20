@@ -9,6 +9,9 @@ use crate::governance::error::{GovernanceError, GovernanceResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Raw PSBT map (BIP174 key-value pairs as byte blobs).
+type PsbtRawMap = HashMap<Vec<u8>, Vec<u8>>;
+
 /// PSBT magic bytes: 0x70736274 ("psbt")
 pub const PSBT_MAGIC: [u8; 4] = [0x70, 0x73, 0x62, 0x74];
 
@@ -301,7 +304,7 @@ impl PartiallySignedTransaction {
 
     /// Deserialize PSBT from bytes
     pub fn deserialize(data: &[u8]) -> GovernanceResult<Self> {
-        if data.len() < 5 || &data[..4] != &PSBT_MAGIC || data[4] != PSBT_SEPARATOR {
+        if data.len() < 5 || data[..4] != PSBT_MAGIC || data[4] != PSBT_SEPARATOR {
             return Err(GovernanceError::InvalidInput(
                 "Invalid PSBT magic bytes".to_string(),
             ));
@@ -387,7 +390,7 @@ fn serialize_map(result: &mut Vec<u8>, map: &HashMap<Vec<u8>, Vec<u8>>) -> Gover
 }
 
 /// Deserialize a key-value map
-fn deserialize_map(data: &[u8]) -> GovernanceResult<(HashMap<Vec<u8>, Vec<u8>>, usize)> {
+fn deserialize_map(data: &[u8]) -> GovernanceResult<(PsbtRawMap, usize)> {
     let mut map = HashMap::new();
     let mut offset = 0;
 

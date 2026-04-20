@@ -243,7 +243,7 @@ fn calculate_fingerprint(pubkey: &[u8]) -> [u8; 4] {
 
     // RIPEMD160(SHA256(pubkey))
     let mut ripemd = Ripemd160::new();
-    ripemd.update(&sha256_hash);
+    ripemd.update(sha256_hash);
     let ripemd_hash = ripemd.finalize();
 
     // First 4 bytes
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn test_child_derivation() {
         let seed = b"test seed for BIP32";
-        let (master_xprv, master_xpub) = derive_master_key(seed).unwrap();
+        let (master_xprv, _master_xpub) = derive_master_key(seed).unwrap();
 
         // Derive first child
         let (child_xprv, child_xpub) = master_xprv.derive_child(0).unwrap();

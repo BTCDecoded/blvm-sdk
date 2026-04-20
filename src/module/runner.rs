@@ -76,6 +76,7 @@ impl InvocationContext {
 /// Run a module with automatic connect, registration, event subscription, and dispatch.
 ///
 /// Handles the full lifecycle: connect → register CLI/RPC/events → loop (invocations + events) → unload on disconnect.
+#[allow(clippy::too_many_arguments)] // Explicit wiring for embedders; splitting would obscure the lifecycle.
 pub async fn run_module<M, C, F, FE, Fut>(
     socket_path: impl AsRef<Path>,
     module_id: &str,
@@ -163,6 +164,7 @@ where
 ///
 /// Use when the module depends on NodeAPI (e.g. datum creates DatumServer with node_api).
 /// The setup receives (node_api, db, data_dir) and returns (module, cli).
+#[allow(clippy::too_many_arguments)]
 pub async fn run_module_with_setup<M, C, F, FE, Fut, FSetup, FutSetup>(
     socket_path: impl AsRef<Path>,
     module_id: &str,
@@ -252,6 +254,7 @@ where
 }
 
 /// Run a module with optional on_connect (setup) and on_tick (periodic) callbacks.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_module_with_tick<M, C, F, FE, Fut, FConnect, FutConnect, FTick, FutTick>(
     socket_path: impl AsRef<Path>,
     module_id: &str,

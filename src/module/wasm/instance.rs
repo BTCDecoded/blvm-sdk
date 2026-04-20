@@ -71,16 +71,12 @@ impl WasmModuleInstance {
         let mut results = [wasmtime::Val::I32(0), wasmtime::Val::I32(0)];
         func.call(&mut *store, &[], &mut results)?;
 
-        let ptr = results[0]
-            .i32()
-            .ok_or_else(|| {
-                wasmtime::Error::msg(format!("Export '{name}' must return (i32, i32); bad ptr"))
-            })? as u32;
-        let len = results[1]
-            .i32()
-            .ok_or_else(|| {
-                wasmtime::Error::msg(format!("Export '{name}' must return (i32, i32); bad len"))
-            })? as u32;
+        let ptr = results[0].i32().ok_or_else(|| {
+            wasmtime::Error::msg(format!("Export '{name}' must return (i32, i32); bad ptr"))
+        })? as u32;
+        let len = results[1].i32().ok_or_else(|| {
+            wasmtime::Error::msg(format!("Export '{name}' must return (i32, i32); bad len"))
+        })? as u32;
 
         if len == 0 {
             return Ok(String::new());
@@ -155,20 +151,16 @@ impl WasmModuleInstance {
             &mut results,
         )?;
 
-        let ptr = results[0]
-            .i32()
-            .ok_or_else(|| {
-                wasmtime::Error::msg(format!(
-                    "Export '{export_name}' must return (i32, i32); bad ptr"
-                ))
-            })? as u32;
-        let len = results[1]
-            .i32()
-            .ok_or_else(|| {
-                wasmtime::Error::msg(format!(
-                    "Export '{export_name}' must return (i32, i32); bad len"
-                ))
-            })? as u32;
+        let ptr = results[0].i32().ok_or_else(|| {
+            wasmtime::Error::msg(format!(
+                "Export '{export_name}' must return (i32, i32); bad ptr"
+            ))
+        })? as u32;
+        let len = results[1].i32().ok_or_else(|| {
+            wasmtime::Error::msg(format!(
+                "Export '{export_name}' must return (i32, i32); bad len"
+            ))
+        })? as u32;
 
         if len == 0 {
             return Ok(String::new());

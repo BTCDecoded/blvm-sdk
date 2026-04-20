@@ -66,7 +66,7 @@ async fn test_dispatch_new_block() {
     let event = EventMessage {
         event_type: EventType::NewBlock,
         payload: EventPayload::NewBlock {
-            block_hash: [1u8; 32].into(),
+            block_hash: [1u8; 32],
             height: 100,
         },
     };
@@ -78,7 +78,7 @@ async fn test_dispatch_new_block() {
     let event2 = EventMessage {
         event_type: EventType::NewBlock,
         payload: EventPayload::NewBlock {
-            block_hash: [2u8; 32].into(),
+            block_hash: [2u8; 32],
             height: 101,
         },
     };
@@ -91,9 +91,7 @@ async fn test_dispatch_new_transaction() {
     let module = TestModule::default();
     let event = EventMessage {
         event_type: EventType::NewTransaction,
-        payload: EventPayload::NewTransaction {
-            tx_hash: [3u8; 32].into(),
-        },
+        payload: EventPayload::NewTransaction { tx_hash: [3u8; 32] },
     };
 
     module.dispatch_event(event).await.unwrap();

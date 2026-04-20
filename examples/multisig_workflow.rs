@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create different types of messages
     println!("3. Creating governance messages...");
-    let messages = vec![
+    let messages = [
         GovernanceMessage::Release {
             version: "v1.0.0".to_string(),
             commit_hash: "abc123def456".to_string(),

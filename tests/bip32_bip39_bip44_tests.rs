@@ -5,16 +5,12 @@
 //! BIP32: HD key derivation
 //! BIP44: Standard derivation paths
 
-use blvm_sdk::governance::bip32::{
-    derive_child_private, derive_child_public, derive_master_key, ExtendedPrivateKey,
-    ExtendedPublicKey,
-};
+use blvm_sdk::governance::bip32::{derive_child_private, derive_child_public, derive_master_key};
 use blvm_sdk::governance::bip39::{
     generate_mnemonic, mnemonic_from_entropy, mnemonic_to_entropy, mnemonic_to_seed,
     validate_mnemonic, EntropyStrength,
 };
 use blvm_sdk::governance::bip44::{Bip44Path, Bip44Wallet, ChangeChain, CoinType};
-use blvm_sdk::governance::error::GovernanceError;
 
 /// Test helper: Generate a test seed
 fn generate_test_seed() -> Vec<u8> {
@@ -435,7 +431,7 @@ fn test_bip39_to_bip32_to_bip44_flow() {
     let seed = mnemonic_to_seed(&mnemonic, "");
 
     // Derive master key
-    let (master_xprv, _) = derive_master_key(&seed).unwrap();
+    let (_master_xprv, _) = derive_master_key(&seed).unwrap();
 
     // Create BIP44 wallet
     let wallet = Bip44Wallet::from_seed(&seed, CoinType::Bitcoin).unwrap();

@@ -8,6 +8,9 @@ use anyhow::Result;
 use std::any::Any;
 use std::sync::Arc;
 
+/// Owned key-value pair returned by [`ModuleTree::iter`].
+pub type ModuleKvPair = (Vec<u8>, Vec<u8>);
+
 /// Key-value tree interface for module storage.
 ///
 /// Minimal interface that both native (Database) and WASM (host calls) can implement.
@@ -22,7 +25,7 @@ pub trait ModuleTree: Send + Sync {
     fn remove(&self, key: &[u8]) -> Result<()>;
 
     /// Iterate over all key-value pairs.
-    fn iter(&self) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>)>> + Send + '_>;
+    fn iter(&self) -> Box<dyn Iterator<Item = Result<ModuleKvPair>> + Send + '_>;
 }
 
 /// Storage interface for modules. Host implements this.
@@ -50,7 +53,7 @@ impl ModuleTree for TreeAdapter {
         self.0.remove(key)
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>)>> + Send + '_> {
+    fn iter(&self) -> Box<dyn Iterator<Item = Result<ModuleKvPair>> + Send + '_> {
         let items: Vec<_> = self.0.iter().collect();
         Box::new(items.into_iter())
     }
@@ -118,7 +121,7 @@ impl blvm_node::storage::database::Tree for ModuleTreeAdapter {
         Ok(n)
     }
 
-    fn iter(&self) -> Box<dyn Iterator<Item = Result<(Vec<u8>, Vec<u8>)>> + '_> {
+    fn iter(&self) -> Box<dyn Iterator<Item = Result<ModuleKvPair>> + '_> {
         self.0.iter()
     }
 

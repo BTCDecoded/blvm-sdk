@@ -312,6 +312,10 @@ fn parse_on_event_args(attr: &syn::Attribute) -> Vec<syn::Ident> {
         .unwrap_or_default()
 }
 
+fn is_ctx_param(name: &str) -> bool {
+    matches!(name, "ctx" | "context" | "_ctx" | "_context")
+}
+
 fn build_handler_call(
     method_ident: &syn::Ident,
     params: &[(String, bool)],
@@ -324,6 +328,8 @@ fn build_handler_call(
         && params.iter().all(|(name, is_event)| {
             if *is_event {
                 true
+            } else if is_ctx_param(name) {
+                true
             } else {
                 payload_fields
                     .as_ref()
@@ -334,9 +340,7 @@ fn build_handler_call(
         });
 
     if !use_di {
-        let has_ctx = params
-            .iter()
-            .any(|(name, _)| name == "ctx" || name == "context");
+        let has_ctx = params.iter().any(|(name, _)| is_ctx_param(name));
         return if has_ctx {
             quote! { self.#method_ident(&event, ctx).await?; }
         } else {
@@ -356,6 +360,8 @@ fn build_handler_call(
         .map(|(name, is_event)| {
             if *is_event {
                 quote! { &event }
+            } else if is_ctx_param(name) {
+                quote! { ctx }
             } else {
                 let ident = syn::Ident::new(name, proc_macro2::Span::call_site());
                 let (_, is_copy) = fields.iter().find(|(f, _)| *f == name).unwrap();

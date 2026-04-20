@@ -31,7 +31,7 @@ pub fn validate_composition(
         match registry.get_module(&module_spec.name, module_spec.version.as_deref()) {
             Ok(info) => {
                 // Capability validation: required deps must be in composition
-                for (dep_name, _ver) in &info.dependencies {
+                for dep_name in info.dependencies.keys() {
                     if !module_names.contains(dep_name) {
                         errors.push(format!(
                             "Module '{}' requires '{}' which is not in composition",

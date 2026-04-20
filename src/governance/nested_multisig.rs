@@ -87,7 +87,7 @@ impl NestedMultisig {
             if let Some(team_id) = self.find_maintainer_team(github) {
                 team_signatures
                     .entry(team_id)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((github.clone(), signature.clone()));
             }
         }

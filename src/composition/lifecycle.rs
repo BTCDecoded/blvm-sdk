@@ -100,7 +100,7 @@ impl ModuleLifecycle {
             let mut mgr = manager.lock().await;
             mgr.unload_module(name)
                 .await
-                .map_err(|e| CompositionError::from(e))?;
+                .map_err(CompositionError::from)?;
         }
 
         self.status_cache

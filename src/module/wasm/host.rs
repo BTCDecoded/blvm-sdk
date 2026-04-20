@@ -5,6 +5,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use wasmtime::{Engine, Extern, Linker};
 
+/// Key-value pair for WASM host storage iteration.
+type WasmKvPair = (Vec<u8>, Vec<u8>);
+
 /// Minimal tree interface for WASM host storage. Embedder implements this.
 pub trait WasmTree: Send + Sync {
     fn insert(&self, key: &[u8], value: &[u8]) -> Result<(), String>;
@@ -12,7 +15,7 @@ pub trait WasmTree: Send + Sync {
     fn remove(&self, key: &[u8]) -> Result<(), String>;
 
     /// Scan all key-value pairs for iteration. Used by host_storage_iter_*.
-    fn scan(&self) -> Result<Vec<(Vec<u8>, Vec<u8>)>, String>;
+    fn scan(&self) -> Result<Vec<WasmKvPair>, String>;
 }
 
 /// Minimal storage interface. Embedder implements this (e.g. wraps blvm-node Database).
@@ -78,7 +81,7 @@ impl WasmHostContext {
         Ok(id)
     }
 
-    fn iter_next(&self, iter_handle: i32) -> Result<Option<(Vec<u8>, Vec<u8>)>, String> {
+    fn iter_next(&self, iter_handle: i32) -> Result<Option<WasmKvPair>, String> {
         let mut iters = self.iters.borrow_mut();
         let (pairs, idx) = iters
             .get_mut(&iter_handle)

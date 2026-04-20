@@ -3,7 +3,6 @@
 //! Tests for message serialization and format consistency.
 
 use blvm_sdk::governance::GovernanceMessage;
-use serde_json;
 
 #[test]
 fn test_release_message_format() {

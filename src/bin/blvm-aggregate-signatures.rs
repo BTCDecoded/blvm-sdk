@@ -59,7 +59,6 @@ struct AggregationResult {
     signature_count: usize,
     output_file: String,
     threshold_met: bool,
-    signatures: Vec<Value>,
 }
 
 fn aggregate_signatures(args: &Args) -> Result<AggregationResult, Box<dyn std::error::Error>> {
@@ -128,7 +127,6 @@ fn aggregate_signatures(args: &Args) -> Result<AggregationResult, Box<dyn std::e
         signature_count: signatures.len(),
         output_file: args.output.clone(),
         threshold_met,
-        signatures,
     })
 }
 

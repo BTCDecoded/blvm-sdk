@@ -89,7 +89,7 @@ fn test_governance_message_edge_cases() {
         purpose: "测试".to_string(),
     };
     let signing_bytes = message.to_signing_bytes();
-    assert!(signing_bytes.len() > 0);
+    assert!(!signing_bytes.is_empty());
 }
 
 #[test]

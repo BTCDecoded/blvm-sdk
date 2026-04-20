@@ -62,18 +62,17 @@ fn extract_tar_gz_safe(archive_path: &Path, dest_dir: &Path) -> Result<()> {
     use std::fs::File;
     use tar::Archive;
 
-    let file = File::open(archive_path).map_err(|e| {
-        CompositionError::InstallationFailed(format!("Open module archive: {}", e))
-    })?;
+    let file = File::open(archive_path)
+        .map_err(|e| CompositionError::InstallationFailed(format!("Open module archive: {}", e)))?;
     let dec = GzDecoder::new(file);
     let mut archive = Archive::new(dec);
     let mut count = 0usize;
-    for entry in archive.entries().map_err(|e| {
-        CompositionError::InstallationFailed(format!("Read tar archive: {}", e))
-    })? {
-        let mut entry = entry.map_err(|e| {
-            CompositionError::InstallationFailed(format!("Tar entry: {}", e))
-        })?;
+    for entry in archive
+        .entries()
+        .map_err(|e| CompositionError::InstallationFailed(format!("Read tar archive: {}", e)))?
+    {
+        let mut entry =
+            entry.map_err(|e| CompositionError::InstallationFailed(format!("Tar entry: {}", e)))?;
         count += 1;
         if count > MAX_TAR_ENTRIES {
             return Err(CompositionError::InstallationFailed(format!(
@@ -164,7 +163,7 @@ impl ModuleRegistry {
             .discover_modules()
             .map_err(|e: RefModuleError| CompositionError::from(e))?;
 
-        self.discovered = discovered.iter().map(|d| ModuleInfo::from(d)).collect();
+        self.discovered = discovered.iter().map(ModuleInfo::from).collect();
 
         Ok(self.discovered.clone())
     }
@@ -174,7 +173,7 @@ impl ModuleRegistry {
         let module = self
             .discovered
             .iter()
-            .find(|m| m.name == name && version.map_or(true, |v| m.version == v))
+            .find(|m| m.name == name && version.is_none_or(|v| m.version == v))
             .ok_or_else(|| {
                 let msg = if let Some(v) = version {
                     format!("Module {} version {} not found", name, v)
@@ -204,7 +203,7 @@ impl ModuleRegistry {
                 let discovery = RefModuleDiscovery::new(&path);
                 let discovered = discovery
                     .discover_modules()
-                    .map_err(|e| CompositionError::from(e))?;
+                    .map_err(CompositionError::from)?;
 
                 if discovered.is_empty() {
                     return Err(CompositionError::InstallationFailed(
@@ -225,7 +224,7 @@ impl ModuleRegistry {
     }
 
     /// Update module to new version (re-pull from git if from git, else re-download from registry)
-    pub fn update_module(&mut self, name: &str, _new_version: Option<&str>) -> Result<ModuleInfo> {
+    pub fn update_module(&mut self, name: &str, new_version: Option<&str>) -> Result<ModuleInfo> {
         let current = self.get_module(name, None)?;
         let dir = current.directory.as_ref().ok_or_else(|| {
             CompositionError::InstallationFailed("Module has no directory".to_string())
@@ -283,12 +282,9 @@ impl ModuleRegistry {
     #[cfg(feature = "registry")]
     fn install_from_registry(&mut self, url: &str, name: Option<&str>) -> Result<ModuleInfo> {
         let client = registry_http_client()?;
-        let index_resp = client
-            .get(url)
-            .send()
-            .map_err(|e| {
-                CompositionError::InstallationFailed(format!("Registry fetch failed: {}", e))
-            })?;
+        let index_resp = client.get(url).send().map_err(|e| {
+            CompositionError::InstallationFailed(format!("Registry fetch failed: {}", e))
+        })?;
         let index_bytes = index_resp.bytes().map_err(|e| {
             CompositionError::InstallationFailed(format!("Registry read failed: {}", e))
         })?;
@@ -340,9 +336,9 @@ impl ModuleRegistry {
             .get(download_url)
             .send()
             .map_err(|e| CompositionError::InstallationFailed(format!("Download failed: {}", e)))?;
-        let bytes = dl_resp
-            .bytes()
-            .map_err(|e| CompositionError::InstallationFailed(format!("Download read failed: {}", e)))?;
+        let bytes = dl_resp.bytes().map_err(|e| {
+            CompositionError::InstallationFailed(format!("Download read failed: {}", e))
+        })?;
         enforce_max_response("Module archive", &bytes, REGISTRY_DOWNLOAD_MAX_BYTES)?;
 
         let dest_dir = self.modules_dir.join(name);
@@ -355,10 +351,8 @@ impl ModuleRegistry {
 
         self.discover_modules()?;
         let info = self.get_module(name, None)?;
-        let dir = info
-            .directory
-            .as_ref()
-            .unwrap_or(&self.modules_dir.join(name));
+        let fallback_dir = self.modules_dir.join(name);
+        let dir = info.directory.as_ref().unwrap_or(&fallback_dir);
         write_source_file(dir, "registry", url)?;
         Ok(info)
     }
@@ -374,7 +368,7 @@ impl ModuleRegistry {
     fn install_from_git(&mut self, url: &str, tag: Option<&str>) -> Result<ModuleInfo> {
         let repo_name = url
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("module")
             .trim_end_matches(".git");
         let dest_dir = self.modules_dir.join(repo_name);
@@ -415,7 +409,8 @@ impl ModuleRegistry {
         let mut remote = repo.find_remote("origin").map_err(|e| {
             CompositionError::InstallationFailed(format!("Git remote origin not found: {}", e))
         })?;
-        remote.fetch(&[], None, None).map_err(|e| {
+        let refspecs: &[&str] = &[];
+        remote.fetch(refspecs, None, None).map_err(|e| {
             CompositionError::InstallationFailed(format!("Git fetch failed: {}", e))
         })?;
 
@@ -465,7 +460,7 @@ impl ModuleRegistry {
         let discovery = RefModuleDiscovery::new(&self.modules_dir);
         let all_discovered = discovery
             .discover_modules()
-            .map_err(|e| CompositionError::from(e))?;
+            .map_err(CompositionError::from)?;
 
         // Filter to only requested modules and convert to owned values
         let requested: Vec<_> = all_discovered
@@ -475,7 +470,7 @@ impl ModuleRegistry {
             .collect();
 
         let resolution =
-            RefModuleDependencies::resolve(&requested).map_err(|e| CompositionError::from(e))?;
+            RefModuleDependencies::resolve(&requested).map_err(CompositionError::from)?;
 
         // Build result with resolved modules
         let mut resolved = Vec::new();

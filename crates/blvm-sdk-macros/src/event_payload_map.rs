@@ -100,6 +100,11 @@ pub fn payload_fields_for_event(event_ident: &str) -> Option<Vec<(&'static str, 
             ],
         ),
         ("PeerUnbanned", vec![("peer_addr", false)]),
+        // Mesh (blvm-mesh): serialized mesh frame from a P2P peer
+        (
+            "MeshPacketReceived",
+            vec![("packet_data", false), ("peer_addr", false)],
+        ),
         // Mempool
         (
             "MempoolTransactionAdded",

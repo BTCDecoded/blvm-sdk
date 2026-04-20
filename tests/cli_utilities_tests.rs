@@ -172,16 +172,14 @@ fn test_parse_threshold_edge_cases() {
     // Test edge cases for threshold parsing
     // 1-of-1 (minimum)
     let result = parse_threshold("1-of-1");
-    if result.is_ok() {
-        let (threshold, total) = result.unwrap();
+    if let Ok((threshold, total)) = result {
         assert_eq!(threshold, 1);
         assert_eq!(total, 1);
     }
 
     // 5-of-5 (all required)
     let result = parse_threshold("5-of-5");
-    if result.is_ok() {
-        let (threshold, total) = result.unwrap();
+    if let Ok((threshold, total)) = result {
         assert_eq!(threshold, 5);
         assert_eq!(total, 5);
     }

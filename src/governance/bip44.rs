@@ -9,6 +9,7 @@
 
 use crate::governance::bip32::{derive_master_key, ExtendedPrivateKey, ExtendedPublicKey};
 use crate::governance::error::{GovernanceError, GovernanceResult};
+use std::fmt;
 
 /// BIP44 purpose (always 44 for multi-account hierarchy)
 pub const BIP44_PURPOSE: u32 = 44;
@@ -168,18 +169,6 @@ impl Bip44Path {
         })
     }
 
-    /// Convert to string representation (e.g., "m/44'/0'/0'/0/0")
-    pub fn to_string(&self) -> String {
-        format!(
-            "m/{}/{}'/{}'/{}/{}",
-            self.purpose,
-            self.coin_type.value(),
-            self.account,
-            self.change.value(),
-            self.address_index
-        )
-    }
-
     /// Derive key from master key using this path
     pub fn derive(
         &self,
@@ -216,6 +205,20 @@ impl Bip44Path {
             self.change.value(),                 // change (not hardened)
             self.address_index,                  // address_index (not hardened)
         ]
+    }
+}
+
+impl fmt::Display for Bip44Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "m/{}/{}'/{}'/{}/{}",
+            self.purpose,
+            self.coin_type.value(),
+            self.account,
+            self.change.value(),
+            self.address_index
+        )
     }
 }
 

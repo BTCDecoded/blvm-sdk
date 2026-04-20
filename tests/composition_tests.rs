@@ -7,7 +7,7 @@ use blvm_sdk::composition::schema::validate_config_schema;
 use blvm_sdk::composition::validation::validate_composition;
 use blvm_sdk::composition::{
     ModuleHealth, ModuleLifecycle, ModuleRegistry, ModuleSource, ModuleSpec, ModuleStatus,
-    NetworkType, NodeComposer, NodeConfig, NodeSpec, NodeStatus, Result, ValidationResult,
+    NetworkType, NodeComposer, NodeConfig, NodeSpec, NodeStatus, ValidationResult,
 };
 use std::collections::HashMap;
 use tempfile::TempDir;
@@ -25,7 +25,7 @@ fn create_temp_modules_dir() -> TempDir {
 fn test_module_registry_creation() {
     // Test creating a module registry
     let temp_dir = create_temp_modules_dir();
-    let registry = ModuleRegistry::new(temp_dir.path());
+    let _registry = ModuleRegistry::new(temp_dir.path());
 
     // Registry should be created
     // Note: We can't easily test discovery without actual modules, but we can test structure
@@ -75,7 +75,7 @@ fn test_module_lifecycle_creation() {
     // Test creating a module lifecycle manager
     let temp_dir = create_temp_modules_dir();
     let registry = ModuleRegistry::new(temp_dir.path());
-    let lifecycle = ModuleLifecycle::new(registry);
+    let _lifecycle = ModuleLifecycle::new(registry);
 
     // Lifecycle should be created
     // Note: We can't easily test start/stop without actual modules
