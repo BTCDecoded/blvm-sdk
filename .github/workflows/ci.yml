@@ -281,42 +281,6 @@ jobs:
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
 
-      - name: Checkout blvm-protocol (sibling for fuzz [patch.crates-io])
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/blvm-protocol
-          path: _temp-blvm-protocol
-      - name: Checkout blvm-consensus (sibling for fuzz [patch.crates-io])
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/blvm-consensus
-          path: _temp-blvm-consensus
-      - name: Checkout blvm-primitives (sibling for fuzz [patch.crates-io])
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/blvm-primitives
-          path: _temp-blvm-primitives
-      - name: Checkout blvm-spec-lock (sibling for fuzz [patch.crates-io])
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/blvm-spec-lock
-          path: _temp-blvm-spec-lock
-      - name: Checkout blvm-secp256k1 (sibling for fuzz [patch.crates-io])
-        uses: actions/checkout@v4
-        with:
-          repository: BTCDecoded/blvm-secp256k1
-          path: _temp-blvm-secp256k1
-      - name: Move sibling crates next to repo root
-        run: |
-          for name in blvm-protocol blvm-consensus blvm-primitives blvm-spec-lock blvm-secp256k1; do
-            if [ -d "../${name}" ]; then rm -rf "../${name}"; fi
-          done
-          mv _temp-blvm-protocol ../blvm-protocol
-          mv _temp-blvm-consensus ../blvm-consensus
-          mv _temp-blvm-primitives ../blvm-primitives
-          mv _temp-blvm-spec-lock ../blvm-spec-lock
-          mv _temp-blvm-secp256k1 ../blvm-secp256k1
-
       - name: Cache
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
         with:
