@@ -1,0 +1,37 @@
+[package]
+name = "blvm-sdk-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+blvm-sdk = { path = "..", default-features = false }
+libfuzzer-sys = "0.4"
+serde_json = "=1.0.108"
+
+[patch.crates-io]
+blvm-protocol = { path = "../../blvm-protocol" }
+blvm-consensus = { path = "../../blvm-consensus" }
+blvm-primitives = { path = "../../blvm-primitives" }
+blvm-spec-lock = { path = "../../blvm-spec-lock" }
+blvm-secp256k1 = { path = "../../blvm-secp256k1" }
+
+[profile.release]
+opt-level = 3
+
+[[bin]]
+name = "sdk_parse_roundtrip"
+path = "fuzz_targets/sdk_parse_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sdk_governance_keys"
+path = "fuzz_targets/sdk_governance_keys.rs"
+test = false
+doc = false
+bench = false

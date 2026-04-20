@@ -257,6 +257,106 @@ jobs:
       - name: Run security audit
         run: cargo audit
 
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    needs: [setup, test]
+    runs-on: [self-hosted, Linux, X64, builds]
+    timeout-minutes: 30
+    if: |
+      (github.event_name != 'push' || github.event.head_commit == null || 
+       (!contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target:
+          - sdk_governance_keys
+          - sdk_parse_roundtrip
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Strip [patch.crates-io] for crates.io-only CI
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Checkout blvm-protocol (sibling for fuzz [patch.crates-io])
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm-protocol
+          path: _temp-blvm-protocol
+      - name: Checkout blvm-consensus (sibling for fuzz [patch.crates-io])
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm-consensus
+          path: _temp-blvm-consensus
+      - name: Checkout blvm-primitives (sibling for fuzz [patch.crates-io])
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm-primitives
+          path: _temp-blvm-primitives
+      - name: Checkout blvm-spec-lock (sibling for fuzz [patch.crates-io])
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm-spec-lock
+          path: _temp-blvm-spec-lock
+      - name: Checkout blvm-secp256k1 (sibling for fuzz [patch.crates-io])
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm-secp256k1
+          path: _temp-blvm-secp256k1
+      - name: Move sibling crates next to repo root
+        run: |
+          for name in blvm-protocol blvm-consensus blvm-primitives blvm-spec-lock blvm-secp256k1; do
+            if [ -d "../${name}" ]; then rm -rf "../${name}"; fi
+          done
+          mv _temp-blvm-protocol ../blvm-protocol
+          mv _temp-blvm-consensus ../blvm-consensus
+          mv _temp-blvm-primitives ../blvm-primitives
+          mv _temp-blvm-spec-lock ../blvm-spec-lock
+          mv _temp-blvm-secp256k1 ../blvm-secp256k1
+
+      - name: Cache
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: bind-env
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Restore Cargo cache
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: restore
+
+      - name: Install Rust
+        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+
+      - name: Install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install cargo-fuzz
+
+      - name: Initialize corpus dirs
+        working-directory: fuzz
+        run: |
+          chmod +x init_corpus.sh
+          ./init_corpus.sh
+
+      - name: Run cargo-fuzz (${{ matrix.target }})
+        working-directory: fuzz
+        env:
+          RUSTFLAGS: "-Cpasses=sancov-module -Cllvm-args=-sanitizer-coverage-level=4"
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          timeout 240 cargo +nightly fuzz run "${{ matrix.target }}" -- -max_total_time=120 -timeout=10 -max_len=65536
+
+      - name: Save Cargo cache
+        if: always()
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: save
+
   build:
     name: Build
     needs: 
@@ -266,6 +366,7 @@ jobs:
       - fmt
       - docs
       - security
+      - fuzz
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
       always() &&
@@ -278,7 +379,8 @@ jobs:
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
        (needs.test.result == 'success' && needs.clippy.result == 'success' && 
         needs.fmt.result == 'success' && needs.docs.result == 'success' && 
-        needs.security.result == 'success'))
+        needs.security.result == 'success' &&
+        (needs.fuzz.result == 'success' || needs.fuzz.result == 'skipped')))
     steps:
       - uses: actions/checkout@v4
       

@@ -1,6 +1,11 @@
 # Rust
 /target/
 Cargo.lock
+# cargo-fuzz (if present)
+fuzz/target/
+fuzz/Cargo.lock
+fuzz/artifacts/
+fuzz/corpus/
 
 # IDE
 .vscode/
