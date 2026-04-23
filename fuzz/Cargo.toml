@@ -12,12 +12,14 @@ blvm-sdk = { path = "..", default-features = false }
 libfuzzer-sys = "0.4"
 serde_json = "=1.0.108"
 
+# Local monorepo: same blvm-* path overrides as blvm-sdk root (relative to fuzz/); CI strip removes this table.
 [patch.crates-io]
 blvm-protocol = { path = "../../blvm-protocol" }
 blvm-consensus = { path = "../../blvm-consensus" }
 blvm-primitives = { path = "../../blvm-primitives" }
 blvm-spec-lock = { path = "../../blvm-spec-lock" }
-blvm-secp256k1 = { path = "../../blvm-secp256k1" }
+blvm-muhash = { path = "../../blvm-muhash" }
+blvm-node = { path = "../../blvm-node" }
 
 [profile.release]
 opt-level = 3
