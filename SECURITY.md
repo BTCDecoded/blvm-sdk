@@ -49,12 +49,8 @@ This document covers repo-specific security boundaries. See the [BTCDecoded Secu
 
 ## Reporting Security Issues
 
-Please report security issues to security@btcdecoded.org or through the [BTCDecoded Security Policy](https://github.com/BTCDecoded/.github/blob/main/SECURITY.md).
+Please report security issues to security@thebitcoincommons.org or through the [BTCDecoded Security Policy](https://github.com/BTCDecoded/.github/blob/main/SECURITY.md).
 
 ## Security Updates
 
 Security updates will be released as patch versions (0.1.x) with clear security advisories.
-
-
-
-

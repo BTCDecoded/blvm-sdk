@@ -71,7 +71,7 @@ cargo clippy --all-targets --all-features
 - Never commit private keys or sensitive data
 - All cryptographic changes require security review
 - Follow the security boundaries defined in SECURITY.md
-- Report security issues through the proper channels
+- Report security issues to security@thebitcoincommons.org (see [SECURITY.md](SECURITY.md))
 
 ## Getting Help
 
