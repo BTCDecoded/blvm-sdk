@@ -100,7 +100,7 @@ struct ModuleSourceFile {
     tag: Option<String>,
 }
 
-#[cfg(any(feature = "registry", feature = "git"))]
+#[cfg(feature = "registry")]
 fn write_source_file(dir: &Path, source: &str, url: &str) -> Result<()> {
     let path = dir.join(SOURCE_FILE);
     let content = ModuleSourceFile {
