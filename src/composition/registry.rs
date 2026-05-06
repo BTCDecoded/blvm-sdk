@@ -377,9 +377,9 @@ impl ModuleRegistry {
         if let Some(t) = tag {
             builder.branch(t);
         }
-        builder.clone(url, &dest_dir).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Git clone failed: {e}"))
-        })?;
+        builder
+            .clone(url, &dest_dir)
+            .map_err(|e| CompositionError::InstallationFailed(format!("Git clone failed: {e}")))?;
 
         write_source_file_git(&dest_dir, url, tag)?;
         self.discover_modules()?;
@@ -406,13 +406,13 @@ impl ModuleRegistry {
             CompositionError::InstallationFailed(format!("Git remote origin not found: {e}"))
         })?;
         let refspecs: &[&str] = &[];
-        remote.fetch(refspecs, None, None).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Git fetch failed: {e}"))
-        })?;
+        remote
+            .fetch(refspecs, None, None)
+            .map_err(|e| CompositionError::InstallationFailed(format!("Git fetch failed: {e}")))?;
 
-        let fetch_head = repo.find_reference("FETCH_HEAD").map_err(|e| {
-            CompositionError::InstallationFailed(format!("FETCH_HEAD failed: {e}"))
-        })?;
+        let fetch_head = repo
+            .find_reference("FETCH_HEAD")
+            .map_err(|e| CompositionError::InstallationFailed(format!("FETCH_HEAD failed: {e}")))?;
         let oid = fetch_head.target().ok_or_else(|| {
             CompositionError::InstallationFailed("Invalid FETCH_HEAD".to_string())
         })?;

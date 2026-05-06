@@ -31,8 +31,7 @@ pub fn parse_file_path(path: &str) -> Result<String, InputError> {
 
 /// Parse a hex string
 pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>, InputError> {
-    hex::decode(hex_str)
-        .map_err(|e| InputError::InvalidFormat(format!("Invalid hex string: {e}")))
+    hex::decode(hex_str).map_err(|e| InputError::InvalidFormat(format!("Invalid hex string: {e}")))
 }
 
 /// Parse a base64 string
