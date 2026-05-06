@@ -79,8 +79,9 @@ wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
 # Testing
 criterion = "=0.5.1"  # Benchmarking
 tempfile = "=3.8.1"  # Temporary files for tests
-# Enable redb in test mode so open_module_db can use dynamic trees (RocksDB requires pre-declared CFs)
-blvm-node = { version = ">=0.1, <1", features = ["redb"] }
+# Enable sled in test builds so open_module_db auto-selects a fully-dynamic backend
+# (RocksDB is the node default but requires pre-declared CFs; Sled creates trees on demand)
+blvm-node = { version = ">=0.1, <1", features = ["sled"] }
 
 [[example]]
 name = "hello-module"
