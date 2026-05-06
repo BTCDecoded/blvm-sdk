@@ -32,13 +32,13 @@ impl GovernanceMessage {
             GovernanceMessage::Release {
                 version,
                 commit_hash,
-            } => format!("RELEASE:{}:{}", version, commit_hash).into_bytes(),
+            } => format!("RELEASE:{version}:{commit_hash}").into_bytes(),
             GovernanceMessage::ModuleApproval {
                 module_name,
                 version,
-            } => format!("MODULE:{}:{}", module_name, version).into_bytes(),
+            } => format!("MODULE:{module_name}:{version}").into_bytes(),
             GovernanceMessage::BudgetDecision { amount, purpose } => {
-                format!("BUDGET:{}:{}", amount, purpose).into_bytes()
+                format!("BUDGET:{amount}:{purpose}").into_bytes()
             }
         }
     }
@@ -50,16 +50,16 @@ impl GovernanceMessage {
                 version,
                 commit_hash,
             } => {
-                format!("Release {} (commit: {})", version, commit_hash)
+                format!("Release {version} (commit: {commit_hash})")
             }
             GovernanceMessage::ModuleApproval {
                 module_name,
                 version,
             } => {
-                format!("Approve module {} version {}", module_name, version)
+                format!("Approve module {module_name} version {version}")
             }
             GovernanceMessage::BudgetDecision { amount, purpose } => {
-                format!("Budget decision: {} satoshis for {}", amount, purpose)
+                format!("Budget decision: {amount} satoshis for {purpose}")
             }
         }
     }

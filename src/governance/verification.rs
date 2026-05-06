@@ -25,7 +25,7 @@ pub fn verify_signature_hash(
     let secp = Secp256k1::new();
 
     let message = Message::from_digest_slice(message_hash)
-        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {}", e)))?;
+        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {e}")))?;
 
     let result = secp.verify_ecdsa(&message, &signature.inner, &public_key.inner);
 

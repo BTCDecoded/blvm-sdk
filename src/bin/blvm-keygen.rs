@@ -37,7 +37,7 @@ fn main() {
     match generate_keypair(&args) {
         Ok(keypair) => {
             let output = format_keypair_output(&keypair, &args, &formatter);
-            println!("{}", output);
+            println!("{output}");
         }
         Err(e) => {
             eprintln!("{}", formatter.format_error(&*e));

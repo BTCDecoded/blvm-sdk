@@ -5,7 +5,7 @@ use blvm_sdk::governance::{GovernanceError, GovernanceKeypair, PublicKey};
 #[test]
 fn test_governance_keypair_debug_format() {
     let keypair = GovernanceKeypair::generate().unwrap();
-    let debug_str = format!("{:?}", keypair);
+    let debug_str = format!("{keypair:?}");
     assert!(debug_str.contains("GovernanceKeypair"));
     assert!(debug_str.contains("secret_key"));
     assert!(debug_str.contains("public_key"));
@@ -49,7 +49,7 @@ fn test_governance_keypair_from_secret_key_edge_cases() {
 fn test_public_key_debug_format() {
     let keypair = GovernanceKeypair::generate().unwrap();
     let public_key = keypair.public_key();
-    let debug_str = format!("{:?}", public_key);
+    let debug_str = format!("{public_key:?}");
     assert!(debug_str.contains("PublicKey"));
 }
 
@@ -105,12 +105,12 @@ fn test_public_key_to_bytes() {
 #[test]
 fn test_governance_error_display() {
     let error = GovernanceError::InvalidKey("test error".to_string());
-    let display_str = format!("{}", error);
+    let display_str = format!("{error}");
     assert!(display_str.contains("Invalid key"));
     assert!(display_str.contains("test error"));
 
     let error = GovernanceError::SignatureVerification("sig error".to_string());
-    let display_str = format!("{}", error);
+    let display_str = format!("{error}");
     assert!(display_str.contains("Signature verification failed"));
     assert!(display_str.contains("sig error"));
 
@@ -118,7 +118,7 @@ fn test_governance_error_display() {
         threshold: 2,
         total: 1,
     };
-    let display_str = format!("{}", error);
+    let display_str = format!("{error}");
     assert!(display_str.contains("Invalid threshold"));
     assert!(display_str.contains("2"));
     assert!(display_str.contains("1"));
@@ -127,7 +127,7 @@ fn test_governance_error_display() {
 #[test]
 fn test_governance_error_debug() {
     let error = GovernanceError::InvalidKey("test error".to_string());
-    let debug_str = format!("{:?}", error);
+    let debug_str = format!("{error:?}");
     assert!(debug_str.contains("InvalidKey"));
     assert!(debug_str.contains("test error"));
 }
@@ -149,13 +149,13 @@ fn test_governance_error_variants() {
     let error9 = GovernanceError::InvalidSignatureFormat("test".to_string());
 
     // Test that all variants can be formatted
-    assert!(!format!("{}", error1).is_empty());
-    assert!(!format!("{}", error2).is_empty());
-    assert!(!format!("{}", error3).is_empty());
-    assert!(!format!("{}", error4).is_empty());
-    assert!(!format!("{}", error5).is_empty());
-    assert!(!format!("{}", error6).is_empty());
-    assert!(!format!("{}", error7).is_empty());
-    assert!(!format!("{}", error8).is_empty());
-    assert!(!format!("{}", error9).is_empty());
+    assert!(!format!("{error1}").is_empty());
+    assert!(!format!("{error2}").is_empty());
+    assert!(!format!("{error3}").is_empty());
+    assert!(!format!("{error4}").is_empty());
+    assert!(!format!("{error5}").is_empty());
+    assert!(!format!("{error6}").is_empty());
+    assert!(!format!("{error7}").is_empty());
+    assert!(!format!("{error8}").is_empty());
+    assert!(!format!("{error9}").is_empty());
 }

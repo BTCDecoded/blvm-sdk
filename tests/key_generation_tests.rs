@@ -95,7 +95,7 @@ fn test_keypair_display_format() {
     let pubkey = keypair.public_key();
 
     // Display should be hex-encoded
-    let display_str = format!("{}", pubkey);
+    let display_str = format!("{pubkey}");
     let expected_hex = hex::encode(pubkey.to_bytes());
     assert_eq!(display_str, expected_hex);
 

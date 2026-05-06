@@ -44,8 +44,7 @@ impl CoinType {
             3 => Ok(CoinType::Dogecoin),
             60 => Ok(CoinType::Ethereum),
             _ => Err(GovernanceError::InvalidInput(format!(
-                "Unsupported coin type: {}",
-                value
+                "Unsupported coin type: {value}"
             ))),
         }
     }
@@ -123,8 +122,7 @@ impl Bip44Path {
 
         if purpose != BIP44_PURPOSE {
             return Err(GovernanceError::InvalidInput(format!(
-                "Purpose must be {} for BIP44",
-                BIP44_PURPOSE
+                "Purpose must be {BIP44_PURPOSE} for BIP44"
             )));
         }
 

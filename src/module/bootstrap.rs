@@ -76,8 +76,8 @@ impl ModuleBootstrap {
     pub fn for_module(module_name: &str) -> Self {
         Self::from_env().unwrap_or_else(|_| Self {
             module_id: module_name.to_string(),
-            socket_path: PathBuf::from(format!("data/modules/{}.sock", module_name)),
-            data_dir: PathBuf::from(format!("data/modules/{}", module_name)),
+            socket_path: PathBuf::from(format!("data/modules/{module_name}.sock")),
+            data_dir: PathBuf::from(format!("data/modules/{module_name}")),
         })
     }
 

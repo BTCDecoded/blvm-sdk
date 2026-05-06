@@ -19,7 +19,7 @@ impl Signature {
     /// Create a signature from bytes
     pub fn from_bytes(bytes: &[u8]) -> GovernanceResult<Self> {
         let signature = Secp256k1Signature::from_compact(bytes).map_err(|e| {
-            GovernanceError::InvalidSignatureFormat(format!("Invalid signature: {}", e))
+            GovernanceError::InvalidSignatureFormat(format!("Invalid signature: {e}"))
         })?;
 
         Ok(Self { inner: signature })
@@ -50,7 +50,7 @@ pub fn sign_message(secret_key: &SecretKey, message: &[u8]) -> GovernanceResult<
     // Hash the message using SHA256 (Bitcoin standard)
     let message_hash = sha2::Sha256::digest(message);
     let message = Message::from_digest_slice(&message_hash)
-        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {}", e)))?;
+        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {e}")))?;
 
     let signature = secp.sign_ecdsa(&message, secret_key);
 
@@ -68,7 +68,7 @@ pub fn verify_signature(
     // Hash the message using SHA256 (Bitcoin standard)
     let message_hash = sha2::Sha256::digest(message);
     let message = Message::from_digest_slice(&message_hash)
-        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {}", e)))?;
+        .map_err(|e| GovernanceError::Cryptographic(format!("Invalid message hash: {e}")))?;
 
     let result = secp.verify_ecdsa(&message, &signature.inner, &public_key.inner);
 

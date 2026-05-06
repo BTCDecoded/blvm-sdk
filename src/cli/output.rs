@@ -21,7 +21,7 @@ impl std::str::FromStr for OutputFormat {
         match s.to_lowercase().as_str() {
             "text" | "txt" => Ok(OutputFormat::Text),
             "json" => Ok(OutputFormat::Json),
-            _ => Err(format!("Invalid output format: {}", s)),
+            _ => Err(format!("Invalid output format: {s}")),
         }
     }
 }
@@ -45,21 +45,21 @@ impl OutputFormatter {
         match self.format {
             OutputFormat::Text => Ok(value.to_string()),
             OutputFormat::Json => serde_json::to_string_pretty(value)
-                .map_err(|e| format!("JSON serialization error: {}", e)),
+                .map_err(|e| format!("JSON serialization error: {e}")),
         }
     }
 
     /// Format an error for output
     pub fn format_error(&self, error: &dyn std::error::Error) -> String {
         match self.format {
-            OutputFormat::Text => format!("Error: {}", error),
+            OutputFormat::Text => format!("Error: {error}"),
             OutputFormat::Json => {
                 let error_json = serde_json::json!({
                     "error": true,
                     "message": error.to_string()
                 });
                 serde_json::to_string_pretty(&error_json)
-                    .unwrap_or_else(|_| format!("{{\"error\": true, \"message\": \"{}\"}}", error))
+                    .unwrap_or_else(|_| format!("{{\"error\": true, \"message\": \"{error}\"}}"))
             }
         }
     }
@@ -67,14 +67,14 @@ impl OutputFormatter {
     /// Format a success message
     pub fn format_success(&self, message: &str) -> String {
         match self.format {
-            OutputFormat::Text => format!("Success: {}", message),
+            OutputFormat::Text => format!("Success: {message}"),
             OutputFormat::Json => {
                 let success_json = serde_json::json!({
                     "success": true,
                     "message": message
                 });
                 serde_json::to_string_pretty(&success_json).unwrap_or_else(|_| {
-                    format!("{{\"success\": true, \"message\": \"{}\"}}", message)
+                    format!("{{\"success\": true, \"message\": \"{message}\"}}")
                 })
             }
         }

@@ -408,8 +408,7 @@ fn deserialize_map(data: &[u8]) -> GovernanceResult<(PsbtRawMap, usize)> {
         offset += len_offset;
         if key_len > MAX_PSBT_KEY_LEN {
             return Err(GovernanceError::InvalidInput(format!(
-                "PSBT key too long: {} bytes (max: {})",
-                key_len, MAX_PSBT_KEY_LEN
+                "PSBT key too long: {key_len} bytes (max: {MAX_PSBT_KEY_LEN})"
             )));
         }
 
@@ -426,8 +425,7 @@ fn deserialize_map(data: &[u8]) -> GovernanceResult<(PsbtRawMap, usize)> {
         offset += len_offset;
         if value_len > MAX_PSBT_VALUE_LEN {
             return Err(GovernanceError::InvalidInput(format!(
-                "PSBT value too long: {} bytes (max: {})",
-                value_len, MAX_PSBT_VALUE_LEN
+                "PSBT value too long: {value_len} bytes (max: {MAX_PSBT_VALUE_LEN})"
             )));
         }
 

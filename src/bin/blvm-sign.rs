@@ -72,7 +72,7 @@ fn main() {
     match sign_message(&args) {
         Ok(signature) => {
             let output = format_signature_output(&signature, &args, &formatter);
-            println!("{}", output);
+            println!("{output}");
         }
         Err(e) => {
             eprintln!("{}", formatter.format_error(&*e));
@@ -112,7 +112,7 @@ fn sign_message(args: &Args) -> Result<Signature, Box<dyn std::error::Error>> {
 
 fn load_keypair(key_path: &str) -> Result<GovernanceKeypair, Box<dyn std::error::Error>> {
     if !Path::new(key_path).exists() {
-        return Err(format!("Key file not found: {}", key_path).into());
+        return Err(format!("Key file not found: {key_path}").into());
     }
 
     let key_data = fs::read_to_string(key_path)?;
@@ -124,7 +124,7 @@ fn load_keypair(key_path: &str) -> Result<GovernanceKeypair, Box<dyn std::error:
 
     let secret_key_bytes = hex::decode(secret_key_hex)?;
     GovernanceKeypair::from_secret_key(&secret_key_bytes)
-        .map_err(|e| format!("Invalid secret key: {}", e).into())
+        .map_err(|e| format!("Invalid secret key: {e}").into())
 }
 
 fn save_signature(

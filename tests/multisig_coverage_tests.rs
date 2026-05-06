@@ -11,7 +11,7 @@ fn test_multisig_debug_format() {
     let public_keys: Vec<_> = keypairs.iter().map(|kp| kp.public_key()).collect();
     let multisig = Multisig::new(2, 3, public_keys).unwrap();
 
-    let debug_str = format!("{:?}", multisig);
+    let debug_str = format!("{multisig:?}");
     assert!(debug_str.contains("Multisig"));
     assert!(debug_str.contains("threshold"));
     assert!(debug_str.contains("total"));

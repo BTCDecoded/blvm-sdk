@@ -45,7 +45,7 @@ fn main() {
     match aggregate_signatures(&args) {
         Ok(result) => {
             let output = format_aggregation_output(&result, &args, &formatter);
-            println!("{}", output);
+            println!("{output}");
         }
         Err(e) => {
             eprintln!("{}", formatter.format_error(&*e));
@@ -69,7 +69,7 @@ fn aggregate_signatures(args: &Args) -> Result<AggregationResult, Box<dyn std::e
 
     for file_path in &signature_files {
         if !Path::new(file_path).exists() {
-            return Err(format!("Signature file not found: {}", file_path).into());
+            return Err(format!("Signature file not found: {file_path}").into());
         }
 
         let sig_data = fs::read_to_string(file_path)?;

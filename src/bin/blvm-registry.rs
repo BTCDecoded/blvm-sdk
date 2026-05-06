@@ -115,7 +115,7 @@ fn run_index(
             path.display()
         );
     } else {
-        println!("{}", json);
+        println!("{json}");
     }
 
     Ok(())

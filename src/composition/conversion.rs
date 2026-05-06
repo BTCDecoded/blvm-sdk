@@ -91,32 +91,27 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
             }
             RefModuleError::PermissionDenied(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Permission denied: {}",
-                    msg
+                    "Permission denied: {msg}"
                 ))
             }
             RefModuleError::IpcError(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "IPC error: {}",
-                    msg
+                    "IPC error: {msg}"
                 ))
             }
             RefModuleError::InitializationError(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Initialization error: {}",
-                    msg
+                    "Initialization error: {msg}"
                 ))
             }
             RefModuleError::VersionIncompatible(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Version incompatible: {}",
-                    msg
+                    "Version incompatible: {msg}"
                 ))
             }
             RefModuleError::ModuleCrashed(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Module crashed: {}",
-                    msg
+                    "Module crashed: {msg}"
                 ))
             }
             RefModuleError::SerializationError(msg) => {
@@ -124,8 +119,7 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
             }
             RefModuleError::RateLimitExceeded(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Rate limit exceeded: {}",
-                    msg
+                    "Rate limit exceeded: {msg}"
                 ))
             }
             RefModuleError::Timeout => {
@@ -135,8 +129,7 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
             }
             RefModuleError::ResourceLimitExceeded(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Resource limit exceeded: {}",
-                    msg
+                    "Resource limit exceeded: {msg}"
                 ))
             }
             RefModuleError::Config(msg) => {
@@ -144,20 +137,17 @@ impl From<RefModuleError> for crate::composition::types::CompositionError {
             }
             RefModuleError::Rpc(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "RPC error: {}",
-                    msg
+                    "RPC error: {msg}"
                 ))
             }
             RefModuleError::Migration(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "Migration error: {}",
-                    msg
+                    "Migration error: {msg}"
                 ))
             }
             RefModuleError::Cli(msg) => {
                 crate::composition::types::CompositionError::InstallationFailed(format!(
-                    "CLI error: {}",
-                    msg
+                    "CLI error: {msg}"
                 ))
             }
             RefModuleError::Other(msg) => {

@@ -65,7 +65,7 @@ impl WasmHostContext {
             .borrow()
             .get(&tree_id)
             .cloned()
-            .ok_or_else(|| format!("Unknown tree_id {}", tree_id))
+            .ok_or_else(|| format!("Unknown tree_id {tree_id}"))
     }
 
     fn iter_open(&self, tree_id: i32) -> Result<i32, String> {
@@ -85,7 +85,7 @@ impl WasmHostContext {
         let mut iters = self.iters.borrow_mut();
         let (pairs, idx) = iters
             .get_mut(&iter_handle)
-            .ok_or_else(|| format!("Unknown iter_handle {}", iter_handle))?;
+            .ok_or_else(|| format!("Unknown iter_handle {iter_handle}"))?;
         if *idx >= pairs.len() {
             return Ok(None);
         }

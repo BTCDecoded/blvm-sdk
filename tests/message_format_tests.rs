@@ -115,7 +115,7 @@ fn test_message_display_format() {
         commit_hash: "abc123".to_string(),
     };
 
-    let display_str = format!("{}", message);
+    let display_str = format!("{message}");
     assert_eq!(display_str, "Release v1.0.0 (commit: abc123)");
 }
 

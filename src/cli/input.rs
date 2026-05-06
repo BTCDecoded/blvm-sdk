@@ -32,7 +32,7 @@ pub fn parse_file_path(path: &str) -> Result<String, InputError> {
 /// Parse a hex string
 pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>, InputError> {
     hex::decode(hex_str)
-        .map_err(|e| InputError::InvalidFormat(format!("Invalid hex string: {}", e)))
+        .map_err(|e| InputError::InvalidFormat(format!("Invalid hex string: {e}")))
 }
 
 /// Parse a base64 string
@@ -40,7 +40,7 @@ pub fn parse_base64(base64_str: &str) -> Result<Vec<u8>, InputError> {
     use base64::{engine::general_purpose, Engine as _};
     general_purpose::STANDARD
         .decode(base64_str)
-        .map_err(|e| InputError::InvalidFormat(format!("Invalid base64 string: {}", e)))
+        .map_err(|e| InputError::InvalidFormat(format!("Invalid base64 string: {e}")))
 }
 
 /// Parse a number from string
@@ -51,7 +51,7 @@ where
 {
     value
         .parse()
-        .map_err(|e| InputError::InvalidValue(format!("Invalid number: {}", e)))
+        .map_err(|e| InputError::InvalidValue(format!("Invalid number: {e}")))
 }
 
 /// Parse a comma-separated list
@@ -75,11 +75,11 @@ pub fn parse_threshold(threshold: &str) -> Result<(usize, usize), InputError> {
 
     let threshold_num = parts[0]
         .parse::<usize>()
-        .map_err(|e| InputError::InvalidValue(format!("Invalid threshold number: {}", e)))?;
+        .map_err(|e| InputError::InvalidValue(format!("Invalid threshold number: {e}")))?;
 
     let total_num = parts[1]
         .parse::<usize>()
-        .map_err(|e| InputError::InvalidValue(format!("Invalid total number: {}", e)))?;
+        .map_err(|e| InputError::InvalidValue(format!("Invalid total number: {e}")))?;
 
     if threshold_num > total_num {
         return Err(InputError::InvalidValue(

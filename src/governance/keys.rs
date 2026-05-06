@@ -41,7 +41,7 @@ impl GovernanceKeypair {
         let secp = Secp256k1::new();
 
         let secret_key = SecretKey::from_slice(secret_bytes)
-            .map_err(|e| GovernanceError::InvalidKey(format!("Invalid secret key: {}", e)))?;
+            .map_err(|e| GovernanceError::InvalidKey(format!("Invalid secret key: {e}")))?;
 
         let public_key = secret_key.public_key(&secp);
 
@@ -73,7 +73,7 @@ impl PublicKey {
     /// Create a public key from bytes
     pub fn from_bytes(bytes: &[u8]) -> GovernanceResult<Self> {
         let public_key = Secp256k1PublicKey::from_slice(bytes)
-            .map_err(|e| GovernanceError::InvalidKey(format!("Invalid public key: {}", e)))?;
+            .map_err(|e| GovernanceError::InvalidKey(format!("Invalid public key: {e}")))?;
 
         Ok(Self { inner: public_key })
     }

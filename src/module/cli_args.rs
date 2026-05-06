@@ -114,6 +114,6 @@ pub fn coerce_bool(s: &str) -> Result<bool, ModuleError> {
     } else if s == "false" || s == "0" || s == "no" || s == "off" {
         Ok(false)
     } else {
-        Err(ModuleError::Other(format!("invalid bool: {}", s)))
+        Err(ModuleError::Other(format!("invalid bool: {s}")))
     }
 }

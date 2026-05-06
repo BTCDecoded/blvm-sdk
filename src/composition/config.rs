@@ -64,7 +64,7 @@ impl NodeConfig {
         let contents = std::fs::read_to_string(path.as_ref()).map_err(CompositionError::IoError)?;
 
         let config: NodeConfig = toml::from_str(&contents).map_err(|e| {
-            CompositionError::InvalidConfiguration(format!("Failed to parse TOML: {}", e))
+            CompositionError::InvalidConfiguration(format!("Failed to parse TOML: {e}"))
         })?;
 
         Ok(config)
@@ -73,7 +73,7 @@ impl NodeConfig {
     /// Save configuration to TOML file
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let toml_string = toml::to_string_pretty(self).map_err(|e| {
-            CompositionError::SerializationError(format!("Failed to serialize config: {}", e))
+            CompositionError::SerializationError(format!("Failed to serialize config: {e}"))
         })?;
 
         std::fs::write(path.as_ref(), toml_string).map_err(CompositionError::IoError)?;

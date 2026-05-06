@@ -57,7 +57,7 @@ pub fn derive_master_key(seed: &[u8]) -> GovernanceResult<(ExtendedPrivateKey, E
     }
 
     let mut hmac = HmacSha512::new_from_slice(b"Bitcoin seed")
-        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC key error: {}", e)))?;
+        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC key error: {e}")))?;
     hmac.update(seed);
     let result = hmac.finalize();
     let bytes = result.into_bytes();
@@ -72,7 +72,7 @@ pub fn derive_master_key(seed: &[u8]) -> GovernanceResult<(ExtendedPrivateKey, E
     // Create secret key
     let secp = Secp256k1::new();
     let private_key = SecretKey::from_slice(&private_key_bytes)
-        .map_err(|e| GovernanceError::InvalidKey(format!("Invalid master private key: {}", e)))?;
+        .map_err(|e| GovernanceError::InvalidKey(format!("Invalid master private key: {e}")))?;
 
     let public_key = private_key.public_key(&secp);
 
@@ -127,7 +127,7 @@ pub fn derive_child_private(
 
     // HMAC-SHA512(chain_code, data)
     let mut hmac = HmacSha512::new_from_slice(&parent.chain_code)
-        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC error: {}", e)))?;
+        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC error: {e}")))?;
     hmac.update(&data);
     let result = hmac.finalize();
     let bytes = result.into_bytes();
@@ -196,7 +196,7 @@ pub fn derive_child_public(
 
     // HMAC-SHA512(chain_code, data)
     let mut hmac = HmacSha512::new_from_slice(&parent.chain_code)
-        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC error: {}", e)))?;
+        .map_err(|e| GovernanceError::InvalidInput(format!("HMAC error: {e}")))?;
     hmac.update(&data);
     let result = hmac.finalize();
     let bytes = result.into_bytes();

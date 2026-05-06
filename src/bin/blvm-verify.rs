@@ -76,7 +76,7 @@ fn main() {
     match verify_message(&args) {
         Ok(result) => {
             let output = format_verification_output(&result, &args, &formatter);
-            println!("{}", output);
+            println!("{output}");
         }
         Err(e) => {
             eprintln!("{}", formatter.format_error(&*e));
@@ -172,7 +172,7 @@ fn load_signatures(
 
     for file_path in signature_files {
         if !Path::new(file_path).exists() {
-            return Err(format!("Signature file not found: {}", file_path).into());
+            return Err(format!("Signature file not found: {file_path}").into());
         }
 
         let sig_data = fs::read_to_string(file_path)?;
@@ -195,7 +195,7 @@ fn load_public_keys(pubkey_files: &[String]) -> Result<Vec<PublicKey>, Box<dyn s
 
     for file_path in pubkey_files {
         if !Path::new(file_path).exists() {
-            return Err(format!("Public key file not found: {}", file_path).into());
+            return Err(format!("Public key file not found: {file_path}").into());
         }
 
         let key_data = fs::read_to_string(file_path)?;

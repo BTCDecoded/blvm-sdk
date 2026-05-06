@@ -32,8 +32,7 @@ pub fn validate_config_schema(config: &NodeConfig) -> Result<ValidationResult> {
             // Warn if version not specified
             if module_cfg.version.is_none() {
                 warnings.push(format!(
-                    "Module '{}' does not specify version, will use latest available",
-                    name
+                    "Module '{name}' does not specify version, will use latest available"
                 ));
             }
         }

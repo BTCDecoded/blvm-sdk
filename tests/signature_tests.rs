@@ -145,7 +145,7 @@ fn test_signature_display_format() {
 
     let signature = sign_message(&keypair.secret_key, message).unwrap();
 
-    let display_str = format!("{}", signature);
+    let display_str = format!("{signature}");
     let expected_hex = hex::encode(signature.to_bytes());
     assert_eq!(display_str, expected_hex);
 

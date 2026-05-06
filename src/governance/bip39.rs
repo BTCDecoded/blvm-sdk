@@ -301,8 +301,7 @@ pub fn mnemonic_from_entropy(entropy: &[u8]) -> GovernanceResult<Vec<String>> {
     let entropy_bits = entropy.len() * 8;
     if !entropy_bits.is_multiple_of(32) || !(128..=256).contains(&entropy_bits) {
         return Err(GovernanceError::InvalidInput(format!(
-            "Entropy must be 128-256 bits and multiple of 32, got {} bits",
-            entropy_bits
+            "Entropy must be 128-256 bits and multiple of 32, got {entropy_bits} bits"
         )));
     }
 
@@ -347,7 +346,7 @@ pub fn mnemonic_from_entropy(entropy: &[u8]) -> GovernanceResult<Vec<String>> {
 
         // Map to word (11 bits = 0-2047)
         let word = get_word(word_index as usize).ok_or_else(|| {
-            GovernanceError::InvalidInput(format!("Invalid word index: {}", word_index))
+            GovernanceError::InvalidInput(format!("Invalid word index: {word_index}"))
         })?;
         mnemonic.push(word.to_string());
     }
@@ -361,8 +360,7 @@ pub fn mnemonic_to_entropy(mnemonic: &[String]) -> GovernanceResult<Vec<u8>> {
     let word_count = mnemonic.len();
     if !(12..=24).contains(&word_count) || !word_count.is_multiple_of(3) {
         return Err(GovernanceError::InvalidInput(format!(
-            "Mnemonic must be 12, 15, 18, 21, or 24 words, got {}",
-            word_count
+            "Mnemonic must be 12, 15, 18, 21, or 24 words, got {word_count}"
         )));
     }
 
@@ -376,7 +374,7 @@ pub fn mnemonic_to_entropy(mnemonic: &[String]) -> GovernanceResult<Vec<u8>> {
     let mut word_indices = Vec::with_capacity(word_count);
     for word in mnemonic {
         let index = find_word_index(word).ok_or_else(|| {
-            GovernanceError::InvalidInput(format!("Invalid mnemonic word: {}", word))
+            GovernanceError::InvalidInput(format!("Invalid mnemonic word: {word}"))
         })?;
         word_indices.push(index);
     }
@@ -431,7 +429,7 @@ pub fn mnemonic_to_entropy(mnemonic: &[String]) -> GovernanceResult<Vec<u8>> {
 /// BIP39: seed = PBKDF2(mnemonic, "mnemonic" + passphrase, 2048 iterations, 64 bytes)
 pub fn mnemonic_to_seed(mnemonic: &[String], passphrase: &str) -> [u8; 64] {
     let mnemonic_str = mnemonic.join(" ");
-    let salt = format!("mnemonic{}", passphrase);
+    let salt = format!("mnemonic{passphrase}");
 
     // PBKDF2-SHA512 with 2048 iterations, 64-byte output
     let mut seed = [0u8; 64];

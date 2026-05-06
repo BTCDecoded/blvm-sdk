@@ -74,7 +74,7 @@ impl ModuleLifecycle {
             let metadata: RefModuleMetadata = info.clone().into();
 
             let binary_path = info.binary_path.as_ref().ok_or_else(|| {
-                CompositionError::ModuleNotFound(format!("Module {} has no binary path", name))
+                CompositionError::ModuleNotFound(format!("Module {name} has no binary path"))
             })?;
 
             let mut mgr = manager.lock().await;

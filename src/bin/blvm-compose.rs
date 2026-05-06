@@ -85,7 +85,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Some(Commands::Compose { config }) => {
-            println!("Composing node from configuration: {:?}", config);
+            println!("Composing node from configuration: {config:?}");
             let composed = composer.compose_from_config(&config).await?;
             println!("Successfully composed node: {}", composed.spec.name);
             println!("Modules: {}", composed.modules.len());
@@ -99,7 +99,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Validate { config }) => {
-            println!("Validating configuration: {:?}", config);
+            println!("Validating configuration: {config:?}");
             let node_config = NodeConfig::from_file(&config)?;
             let validation = composer.validate_composition(&node_config.to_spec()?)?;
 
@@ -108,14 +108,14 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 if !validation.warnings.is_empty() {
                     println!("Warnings:");
                     for warning in &validation.warnings {
-                        println!("  - {}", warning);
+                        println!("  - {warning}");
                     }
                 }
                 Ok(())
             } else {
                 println!("✗ Configuration is invalid:");
                 for error in &validation.errors {
-                    println!("  - {}", error);
+                    println!("  - {error}");
                 }
                 std::process::exit(1)
             }
@@ -126,9 +126,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
             if let Some(path) = output {
                 std::fs::write(&path, template)?;
-                println!("Template written to: {:?}", path);
+                println!("Template written to: {path:?}");
             } else {
-                print!("{}", template);
+                print!("{template}");
             }
             Ok(())
         }
@@ -144,7 +144,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 for module in modules {
                     println!("  - {} ({})", module.name, module.version);
                     if let Some(desc) = &module.description {
-                        println!("    {}", desc);
+                        println!("    {desc}");
                     }
                 }
             }
@@ -171,7 +171,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 ModuleSource::Path(PathBuf::from(source))
             };
 
-            println!("Installing module from: {:?}", module_source);
+            println!("Installing module from: {module_source:?}");
             let module = composer.registry_mut().install_module(module_source)?;
             println!(
                 "Successfully installed: {} ({})",
@@ -181,7 +181,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Modules(ModuleCommands::Update { name, version })) => {
-            println!("Updating module {} to version {}", name, version);
+            println!("Updating module {name} to version {version}");
             let module = composer
                 .registry_mut()
                 .update_module(&name, Some(version.as_str()))?;
@@ -190,9 +190,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
 
         Some(Commands::Modules(ModuleCommands::Remove { name })) => {
-            println!("Removing module: {}", name);
+            println!("Removing module: {name}");
             composer.registry_mut().remove_module(&name)?;
-            println!("Successfully removed: {}", name);
+            println!("Successfully removed: {name}");
             Ok(())
         }
 

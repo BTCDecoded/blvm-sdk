@@ -31,7 +31,7 @@ fn registry_http_client() -> Result<reqwest::blocking::Client> {
         .connect_timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| {
-            CompositionError::InstallationFailed(format!("Failed to build HTTP client: {}", e))
+            CompositionError::InstallationFailed(format!("Failed to build HTTP client: {e}"))
         })
 }
 
@@ -63,33 +63,31 @@ fn extract_tar_gz_safe(archive_path: &Path, dest_dir: &Path) -> Result<()> {
     use tar::Archive;
 
     let file = File::open(archive_path)
-        .map_err(|e| CompositionError::InstallationFailed(format!("Open module archive: {}", e)))?;
+        .map_err(|e| CompositionError::InstallationFailed(format!("Open module archive: {e}")))?;
     let dec = GzDecoder::new(file);
     let mut archive = Archive::new(dec);
     let mut count = 0usize;
     for entry in archive
         .entries()
-        .map_err(|e| CompositionError::InstallationFailed(format!("Read tar archive: {}", e)))?
+        .map_err(|e| CompositionError::InstallationFailed(format!("Read tar archive: {e}")))?
     {
         let mut entry =
-            entry.map_err(|e| CompositionError::InstallationFailed(format!("Tar entry: {}", e)))?;
+            entry.map_err(|e| CompositionError::InstallationFailed(format!("Tar entry: {e}")))?;
         count += 1;
         if count > MAX_TAR_ENTRIES {
             return Err(CompositionError::InstallationFailed(format!(
-                "Too many files in module archive (max {})",
-                MAX_TAR_ENTRIES
+                "Too many files in module archive (max {MAX_TAR_ENTRIES})"
             )));
         }
         let size = entry.size();
         if size > MAX_TAR_ENTRY_BYTES {
             return Err(CompositionError::InstallationFailed(format!(
-                "Module archive member too large: {} bytes (max {})",
-                size, MAX_TAR_ENTRY_BYTES
+                "Module archive member too large: {size} bytes (max {MAX_TAR_ENTRY_BYTES})"
             )));
         }
         entry
             .unpack_in(dest_dir)
-            .map_err(|e| CompositionError::InstallationFailed(format!("Extract failed: {}", e)))?;
+            .map_err(|e| CompositionError::InstallationFailed(format!("Extract failed: {e}")))?;
     }
     Ok(())
 }
@@ -176,9 +174,9 @@ impl ModuleRegistry {
             .find(|m| m.name == name && version.is_none_or(|v| m.version == v))
             .ok_or_else(|| {
                 let msg = if let Some(v) = version {
-                    format!("Module {} version {} not found", name, v)
+                    format!("Module {name} version {v} not found")
                 } else {
-                    format!("Module {} not found", name)
+                    format!("Module {name} not found")
                 };
                 CompositionError::ModuleNotFound(msg)
             })?;
@@ -193,8 +191,7 @@ impl ModuleRegistry {
                 // Validate path exists
                 if !path.exists() {
                     return Err(CompositionError::InstallationFailed(format!(
-                        "Module path does not exist: {:?}",
-                        path
+                        "Module path does not exist: {path:?}"
                     )));
                 }
 
@@ -283,14 +280,14 @@ impl ModuleRegistry {
     fn install_from_registry(&mut self, url: &str, name: Option<&str>) -> Result<ModuleInfo> {
         let client = registry_http_client()?;
         let index_resp = client.get(url).send().map_err(|e| {
-            CompositionError::InstallationFailed(format!("Registry fetch failed: {}", e))
+            CompositionError::InstallationFailed(format!("Registry fetch failed: {e}"))
         })?;
         let index_bytes = index_resp.bytes().map_err(|e| {
-            CompositionError::InstallationFailed(format!("Registry read failed: {}", e))
+            CompositionError::InstallationFailed(format!("Registry read failed: {e}"))
         })?;
         enforce_max_response("Registry index", &index_bytes, REGISTRY_INDEX_MAX_BYTES)?;
         let index: serde_json::Value = serde_json::from_slice(&index_bytes).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Registry JSON parse failed: {}", e))
+            CompositionError::InstallationFailed(format!("Registry JSON parse failed: {e}"))
         })?;
 
         let modules = index
@@ -312,8 +309,7 @@ impl ModuleRegistry {
                 .find(|m| m.get("name").and_then(|v| v.as_str()) == Some(n))
                 .ok_or_else(|| {
                     CompositionError::InstallationFailed(format!(
-                        "Module '{}' not found in registry",
-                        n
+                        "Module '{n}' not found in registry"
                     ))
                 })?
         } else {
@@ -335,9 +331,9 @@ impl ModuleRegistry {
         let dl_resp = client
             .get(download_url)
             .send()
-            .map_err(|e| CompositionError::InstallationFailed(format!("Download failed: {}", e)))?;
+            .map_err(|e| CompositionError::InstallationFailed(format!("Download failed: {e}")))?;
         let bytes = dl_resp.bytes().map_err(|e| {
-            CompositionError::InstallationFailed(format!("Download read failed: {}", e))
+            CompositionError::InstallationFailed(format!("Download read failed: {e}"))
         })?;
         enforce_max_response("Module archive", &bytes, REGISTRY_DOWNLOAD_MAX_BYTES)?;
 
@@ -382,7 +378,7 @@ impl ModuleRegistry {
             builder.branch(t);
         }
         builder.clone(url, &dest_dir).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Git clone failed: {}", e))
+            CompositionError::InstallationFailed(format!("Git clone failed: {e}"))
         })?;
 
         write_source_file_git(&dest_dir, url, tag)?;
@@ -405,29 +401,29 @@ impl ModuleRegistry {
         })?;
 
         let repo = git2::Repository::open(dir)
-            .map_err(|e| CompositionError::InstallationFailed(format!("Git open failed: {}", e)))?;
+            .map_err(|e| CompositionError::InstallationFailed(format!("Git open failed: {e}")))?;
         let mut remote = repo.find_remote("origin").map_err(|e| {
-            CompositionError::InstallationFailed(format!("Git remote origin not found: {}", e))
+            CompositionError::InstallationFailed(format!("Git remote origin not found: {e}"))
         })?;
         let refspecs: &[&str] = &[];
         remote.fetch(refspecs, None, None).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Git fetch failed: {}", e))
+            CompositionError::InstallationFailed(format!("Git fetch failed: {e}"))
         })?;
 
         let fetch_head = repo.find_reference("FETCH_HEAD").map_err(|e| {
-            CompositionError::InstallationFailed(format!("FETCH_HEAD failed: {}", e))
+            CompositionError::InstallationFailed(format!("FETCH_HEAD failed: {e}"))
         })?;
         let oid = fetch_head.target().ok_or_else(|| {
             CompositionError::InstallationFailed("Invalid FETCH_HEAD".to_string())
         })?;
         let obj = repo.find_object(oid, None).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Find object failed: {}", e))
+            CompositionError::InstallationFailed(format!("Find object failed: {e}"))
         })?;
         repo.checkout_tree(&obj, None).map_err(|e| {
-            CompositionError::InstallationFailed(format!("Checkout tree failed: {}", e))
+            CompositionError::InstallationFailed(format!("Checkout tree failed: {e}"))
         })?;
         repo.set_head_detached(oid)
-            .map_err(|e| CompositionError::InstallationFailed(format!("Checkout failed: {}", e)))?;
+            .map_err(|e| CompositionError::InstallationFailed(format!("Checkout failed: {e}")))?;
 
         self.discover_modules()?;
         Ok(())

@@ -58,7 +58,7 @@ pub fn validate_composition(
             }
         }
         Err(e) => {
-            errors.push(format!("Dependency resolution failed: {}", e));
+            errors.push(format!("Dependency resolution failed: {e}"));
         }
     }
 

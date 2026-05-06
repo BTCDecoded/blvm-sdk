@@ -51,10 +51,13 @@ blvm-consensus = { version = ">=0.1, <1" }
 tokio = { version = "=1.48.0", features = ["rt", "macros", "sync", "fs"] }
 tracing = "0.1"
 reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+# Pins transitive rustls-webpki for `cargo audit` until reqwest/rustls bumps (RUSTSEC-2026-0049 etc.).
+rustls-webpki = "=0.103.13"
 flate2 = { version = "1.0", optional = true, default-features = false, features = ["rust_backend"] }
 tar = { version = "0.4", optional = true }
 git2 = { version = "0.18", optional = true }
-wasmtime = { version = "22", optional = true, default-features = false, features = ["wat", "cranelift", "runtime"] }
+# RUSTSEC-2026-*: wasmtime 22 had multiple sandbox / cranelift CVEs; minimum patched line is 36.0.7+.
+wasmtime = { version = "=36.0.9", optional = true, default-features = false, features = ["wat", "cranelift", "runtime"] }
 
 # Local monorepo: sibling paths override the version pins above.
 [patch.crates-io]
