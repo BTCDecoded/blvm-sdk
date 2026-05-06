@@ -100,6 +100,7 @@ struct ModuleSourceFile {
     tag: Option<String>,
 }
 
+#[cfg(any(feature = "registry", feature = "git"))]
 fn write_source_file(dir: &Path, source: &str, url: &str) -> Result<()> {
     let path = dir.join(SOURCE_FILE);
     let content = ModuleSourceFile {
@@ -113,6 +114,7 @@ fn write_source_file(dir: &Path, source: &str, url: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "git")]
 fn write_source_file_git(dir: &Path, url: &str, tag: Option<&str>) -> Result<()> {
     let path = dir.join(SOURCE_FILE);
     let content = ModuleSourceFile {
@@ -222,6 +224,7 @@ impl ModuleRegistry {
 
     /// Update module to new version (re-pull from git if from git, else re-download from registry)
     pub fn update_module(&mut self, name: &str, new_version: Option<&str>) -> Result<ModuleInfo> {
+        let _ = new_version; // used only in feature-gated branches (git / registry)
         let current = self.get_module(name, None)?;
         let dir = current.directory.as_ref().ok_or_else(|| {
             CompositionError::InstallationFailed("Module has no directory".to_string())
