@@ -1,8 +1,7 @@
 name: CI
 
 
-# Commit message skip tokens (push only): [skip_tests], [skip_fuzz]
-# Docs are opt-in: add [run_docs] to run rustdoc; skipped by default on every push.
+# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz]
 
 on:
   push:
@@ -404,9 +403,13 @@ jobs:
     needs: [setup, build-dev]
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.event.head_commit != null &&
-       contains(github.event.head_commit.message, '[run_docs]'))
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       (!contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_docs]')) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
 
