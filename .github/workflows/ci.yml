@@ -1,5 +1,7 @@
 name: CI
 
+# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz]
+
 on:
   push:
     branches: [ main, develop ]
@@ -24,72 +26,133 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: '1'
-  # Match blvm-node: incremental fills runner disks under shared target dirs.
   CARGO_INCREMENTAL: '0'
+  # Shared target dir for build-dev → test / clippy / docs (same workflow run, same runner host).
+  BLVM_BUILD_TARGET: /tmp/gh-blvm-sdk-build/${{ github.run_id }}/target
 
 jobs:
   setup:
     name: Setup
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]')))
     outputs:
       cache-key: ${{ steps.setup-cache.outputs.cache-key }}
     steps:
+      - name: Emergency pre-flight disk cleanup
+        run: |
+          echo "=== disk BEFORE cleanup ==="
+          df -h /
+          if [ -d /tmp/gh-blvm-sdk-build ]; then
+            find /tmp/gh-blvm-sdk-build -mindepth 1 -maxdepth 1 -type d \
+              -not -name "${{ github.run_id }}" \
+              -mmin +60 \
+              -exec rm -rf {} + 2>/dev/null || true
+            USED=$(du -sb /tmp/gh-blvm-sdk-build 2>/dev/null | cut -f1 || echo 0)
+            if [ "$USED" -gt 53687091200 ]; then
+              echo "⚠️  gh-blvm-sdk-build >50 GB — force-evicting stale dirs"
+              find /tmp/gh-blvm-sdk-build -mindepth 1 -maxdepth 1 -type d \
+                -not -name "${{ github.run_id }}" \
+                -exec rm -rf {} + 2>/dev/null || true
+            fi
+          fi
+          rm -rf /tmp/gh-fuzz-blvm-sdk 2>/dev/null || true
+          echo "=== disk AFTER cleanup ==="
+          df -h /
+
       - name: Disk check
         uses: BTCDecoded/rust-ci/runner-disk-guard@main
+        with:
+          show-df: false
+
+      - name: Show disk usage (top 10 largest dirs)
+        if: always()
+        run: |
+          echo "=== df -h ==="
+          df -h /
+          echo ""
+          echo "=== Top 10 largest directories under / ==="
+          du -x --max-depth=4 / 2>/dev/null \
+            | sort -rh \
+            | grep -v -e '^[0-9]*\s*/proc' -e '^[0-9]*\s*/sys' -e '^[0-9]*\s*/dev' \
+            | head -10 \
+            | awk '{printf "%-10s %s\n", $1, $2}'
+          echo ""
+          echo "=== /tmp/gh-blvm-sdk-build ==="
+          du -sh /tmp/gh-blvm-sdk-build 2>/dev/null || echo "(none)"
 
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
-      - name: Cache
+
+      - name: Cache key
         id: setup-cache
         run: |
           CACHE_ROOT="/tmp/runner-cache"
-          
-          # Generate cache key from Cargo.toml (library crate does not commit Cargo.lock)
           DEPS_KEY=$(sha256sum Cargo.toml | cut -d' ' -f1)
-          
-          # Include toolchain version in cache key
           TOOLCHAIN=$(grep -E '^channel|rust-version' rust-toolchain.toml Cargo.toml 2>/dev/null | head -1 | sha256sum | cut -d' ' -f1 || echo "1.88.0")
-          
           CACHE_KEY="${DEPS_KEY}-${TOOLCHAIN}"
-          
-          # Set up cache directories
           CARGO_CACHE_DIR="$CACHE_ROOT/cargo/$CACHE_KEY"
           TARGET_CACHE_DIR="$CACHE_ROOT/target/$CACHE_KEY"
-          
           echo "CARGO_CACHE_DIR=$CARGO_CACHE_DIR" >> $GITHUB_ENV
           echo "TARGET_CACHE_DIR=$TARGET_CACHE_DIR" >> $GITHUB_ENV
-          
           echo "cache-key=$CACHE_KEY" >> $GITHUB_OUTPUT
-          
           mkdir -p "$CARGO_CACHE_DIR"/{registry,git} "$TARGET_CACHE_DIR"
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
 
-  test:
-    name: Test
+  build-dev:
+    name: Build (dev, shared)
     needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
+      - name: Show disk usage
+        run: |
+          df -h /
+          du -sh /tmp/gh-blvm-sdk-build 2>/dev/null || true
+
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Clean leftover path overrides
+        run: |
+          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
+          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
+          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
+          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
+          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
+          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
+          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
+
+      - name: Install OpenSSL development headers
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            bash scripts/apt-get-retry.sh update -qq
+            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm openssl pkgconf
+          fi
+
+      - name: Isolate CARGO_HOME for this runner
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cargo"
+          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
+
       - name: Cache
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
         with:
@@ -103,22 +166,120 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
-      - name: Run tests with coverage
+
+      - name: Compile test binaries once (default features)
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: |
-          # Install tarpaulin
+          # Matches tarpaulin test run (no --all-features): one full compile shared with test/clippy/doc.
+          # Optional features (wasm-modules, registry, git) are checked by a second clippy step (incremental).
+          cargo test --no-run
+
+      - name: Dump disk usage on failure
+        if: failure()
+        run: |
+          df -h /
+          du -sh /tmp/gh-blvm-sdk-build/* 2>/dev/null | sort -rh | head -10
+
+      - name: Save Cargo cache
+        if: always()
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: save
+
+      - name: Prune old runner caches
+        if: always()
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: prune
+
+  test:
+    name: Test
+    needs: [setup, build-dev]
+    runs-on: [self-hosted, Linux, X64, builds]
+    if: |
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       (!contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Strip [patch.crates-io] for crates.io-only CI
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Clean leftover path overrides
+        run: |
+          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
+          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
+          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
+          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
+          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
+          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
+          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
+
+      - name: Install OpenSSL development headers
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            bash scripts/apt-get-retry.sh update -qq
+            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm openssl pkgconf
+          fi
+
+      - name: Isolate CARGO_HOME for this runner
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cargo"
+          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
+
+      - name: Cache
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: bind-env
+          cache-key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Restore Cargo cache
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: restore
+
+      - name: Install Rust
+        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+
+      - name: Run tests with coverage
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
           cargo install cargo-tarpaulin --version 0.27.0
-          
-          # Run tests with coverage in one step
-          # Use --lib --bins --tests to ensure all test types run
-          # Use --skip-clean to reuse cached build artifacts, --timeout to prevent hangs
           cargo tarpaulin --lib --bins --tests --out xml --output-dir coverage --skip-clean --timeout 120
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: coverage/cobertura.xml
-      
+
+      - name: Dump disk usage on failure
+        if: failure()
+        run: |
+          df -h /
+          du -sh /tmp/gh-blvm-sdk-build/* 2>/dev/null | sort -rh | head -10
+
+      - name: Clean test executables and stale run dirs
+        if: always()
+        run: |
+          TARGET="${{ env.BLVM_BUILD_TARGET }}"
+          if [ -d "$TARGET/debug" ]; then
+            find "$TARGET/debug" -maxdepth 1 -type f -executable ! -name "*.so" ! -name "*.rlib" ! -name "*.d" \
+              -delete 2>/dev/null || true
+          fi
+          find /tmp/gh-blvm-sdk-build -mindepth 1 -maxdepth 1 -type d \
+            -not -name "${{ github.run_id }}" \
+            -exec rm -rf {} + 2>/dev/null || true
+
       - name: Save Cargo cache
         if: always()
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
@@ -133,20 +294,46 @@ jobs:
 
   clippy:
     name: Clippy
-    needs: setup
+    needs: [setup, build-dev]
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Clean leftover path overrides
+        run: |
+          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
+          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
+          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
+          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
+          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
+          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
+          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
+
+      - name: Install OpenSSL development headers
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            bash scripts/apt-get-retry.sh update -qq
+            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm openssl pkgconf
+          fi
+
+      - name: Isolate CARGO_HOME for this runner
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cargo"
+          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
+
       - name: Cache
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
         with:
@@ -161,58 +348,99 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
-      - name: Run clippy
+
+      - name: Clippy (default features)
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: |
           if ! cargo clippy --version >/dev/null 2>&1; then
-            echo "Skipping Clippy (cargo-clippy not installed for the active toolchain)"
+            echo "Skipping Clippy (cargo-clippy not installed)"
             exit 0
           fi
-          cargo clippy --lib --bins --all-features -- -D warnings
+          cargo clippy --lib --bins --tests -- -D clippy::uninlined_format_args -D warnings
+
+      - name: Clippy (all optional features, incremental)
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
+        run: |
+          if ! cargo clippy --version >/dev/null 2>&1; then
+            exit 0
+          fi
+          cargo clippy --lib --bins --tests --all-features -- -D clippy::uninlined_format_args -D warnings
 
   fmt:
     name: Format
     needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
+
       - name: Check formatting
         run: |
           if ! cargo fmt --version >/dev/null 2>&1; then
-            echo "Skipping rustfmt (not installed for the active toolchain)"
+            echo "Skipping rustfmt"
             exit 0
           fi
           cargo fmt --all -- --check
 
   docs:
     name: Docs
-    needs: setup
+    needs: [setup, build-dev]
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_docs]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Clean leftover path overrides
+        run: |
+          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
+          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
+          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
+          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
+          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
+          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
+          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
+
+      - name: Install OpenSSL development headers
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            bash scripts/apt-get-retry.sh update -qq
+            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm openssl pkgconf
+          fi
+
+      - name: Isolate CARGO_HOME for this runner
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cargo"
+          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
+
       - name: Cache
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
         with:
@@ -227,11 +455,15 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
-      - name: Build docs
+
+      - name: Build docs (default features — faster)
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: cargo doc --no-deps
-      
-      - name: Check docs
+
+      - name: Check docs (private items)
+        env:
+          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: cargo doc --no-deps --document-private-items
 
   security:
@@ -239,24 +471,31 @@ jobs:
     needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
-        !contains(github.event.head_commit.message, '[no ci]')))
+        !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_tests]')) &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
+
       - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.22.1 --locked
-      
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo install cargo-audit --version 0.22.1 --locked
+
       - name: Run security audit
-        run: cargo audit
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cargo audit
 
   fuzz:
     name: Fuzz (${{ matrix.target }})
@@ -264,10 +503,12 @@ jobs:
     runs-on: [self-hosted, Linux, X64, builds]
     timeout-minutes: 30
     if: |
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_fuzz]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     strategy:
       fail-fast: false
@@ -324,8 +565,9 @@ jobs:
 
   build:
     name: Build
-    needs: 
+    needs:
       - setup
+      - build-dev
       - test
       - clippy
       - fmt
@@ -336,22 +578,50 @@ jobs:
     if: |
       always() &&
       needs.setup.result == 'success' &&
+      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch') &&
-      (github.event_name != 'push' || github.event.head_commit == null || 
+      (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
-       (needs.test.result == 'success' && needs.clippy.result == 'success' && 
-        needs.fmt.result == 'success' && needs.docs.result == 'success' && 
-        needs.security.result == 'success' &&
+       ((needs.test.result == 'success' || needs.test.result == 'skipped') &&
+        (needs.clippy.result == 'success' || needs.clippy.result == 'skipped') &&
+        (needs.fmt.result == 'success' || needs.fmt.result == 'skipped') &&
+        (needs.docs.result == 'success' || needs.docs.result == 'skipped') &&
+        (needs.security.result == 'success' || needs.security.result == 'skipped') &&
         (needs.fuzz.result == 'success' || needs.fuzz.result == 'skipped')))
+
     steps:
       - uses: actions/checkout@v4
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Clean leftover path overrides
+        run: |
+          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
+          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
+          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
+          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
+          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
+          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
+          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
+
+      - name: Install OpenSSL development headers
+        run: |
+          if command -v apt-get >/dev/null 2>&1; then
+            bash scripts/apt-get-retry.sh update -qq
+            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
+          elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -Sy --noconfirm openssl pkgconf
+          fi
+
+      - name: Isolate CARGO_HOME for this runner
+        run: |
+          mkdir -p "${RUNNER_TEMP}/cargo"
+          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
+
       - name: Cache
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
         with:
@@ -365,35 +635,32 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
-      - name: Build
+
+      - name: Build release (default features — matches crates.io defaults)
         run: cargo build --release
-      
-      - name: Cache target
-        if: always()
-        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
-        with:
-          operation: save
-          save-target-only: true
 
   release:
     name: Release
-    needs: [build, test, clippy, fmt, docs, security]
+    needs: [setup, build-dev, build, test, clippy, fmt, docs, security, fuzz]
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
       always() &&
       needs.build.result == 'success' &&
+      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      (github.event.head_commit == null || 
+      (github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]') &&
         !contains(github.event.head_commit.message, '[skip release]'))) &&
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
-       (needs.test.result == 'success' && needs.clippy.result == 'success' && 
-        needs.fmt.result == 'success' && needs.docs.result == 'success' && 
-        needs.security.result == 'success'))
+       (needs.test.result == 'success' &&
+        needs.clippy.result == 'success' &&
+        needs.fmt.result == 'success' &&
+        needs.docs.result == 'success' &&
+        needs.security.result == 'success' &&
+        (needs.fuzz.result == 'success' || needs.fuzz.result == 'skipped')))
     permissions:
       contents: write
       id-token: write
@@ -404,35 +671,30 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-      
+
       - name: Determine version
         id: version
         run: |
-          # Extract current version from [package] section
           CURRENT=$(grep -A 10 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           if [ -z "$CURRENT" ]; then
             echo "❌ Could not determine current version from Cargo.toml"
-            grep -A 10 '^\[package\]' Cargo.toml | head -10
             exit 1
           fi
           echo "Current version: ${CURRENT}"
           if ! echo "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "❌ Invalid version format: ${CURRENT} (expected X.Y.Z)"
+            echo "❌ Invalid version format: ${CURRENT}"
             exit 1
           fi
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
           PATCH=$((PATCH + 1))
-
-          # Same version tag for blvm-sdk and blvm-sdk-macros; both must be free on crates.io.
-          # Fetch all published versions for each crate once upfront.
           fetch_versions() {
             local crate="$1"
             local resp
@@ -450,8 +712,6 @@ jobs:
           echo "Fetching published versions for blvm-sdk and blvm-sdk-macros..."
           SDK_VERSIONS=$(fetch_versions "blvm-sdk")
           MACROS_VERSIONS=$(fetch_versions "blvm-sdk-macros")
-          echo "blvm-sdk: $(echo "$SDK_VERSIONS" | wc -l | tr -d ' ') versions, blvm-sdk-macros: $(echo "$MACROS_VERSIONS" | wc -l | tr -d ' ') versions"
-
           MAX_ATTEMPTS=10
           ATTEMPT=0
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
@@ -461,11 +721,11 @@ jobs:
             echo "$SDK_VERSIONS" | grep -qxF "$VERSION" && EXISTS_SDK=true
             echo "$MACROS_VERSIONS" | grep -qxF "$VERSION" && EXISTS_MACROS=true
             if [ "$EXISTS_SDK" = true ] || [ "$EXISTS_MACROS" = true ]; then
-              echo "⚠️  blvm-sdk (${EXISTS_SDK}) or blvm-sdk-macros (${EXISTS_MACROS}) already has v${VERSION}; bumping patch..."
+              echo "⚠️  v${VERSION} taken; bumping patch..."
               PATCH=$((PATCH + 1))
               ATTEMPT=$((ATTEMPT + 1))
             else
-              echo "✅ v${VERSION} is available for both crates"
+              echo "✅ v${VERSION} available for both crates"
               break
             fi
           done
@@ -473,10 +733,9 @@ jobs:
             echo "❌ Failed to find available version after ${MAX_ATTEMPTS} attempts"
             exit 1
           fi
-          
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "✅ Releasing version: ${VERSION}"
-      
+
       - name: Get latest blvm-node version from crates.io
         id: node-version
         run: |
@@ -491,18 +750,17 @@ jobs:
             NODE_VER=$(echo "$API_RESPONSE" | grep -oE '"max_version":"[^"]+"' | head -1 | sed 's/.*"max_version":"//;s/"$//')
           fi
           if [ -z "$NODE_VER" ] || [ "$NODE_VER" = "null" ]; then
-            echo "❌ blvm-node not found on crates.io (API). It must be published first."
+            echo "❌ blvm-node not found on crates.io"
             exit 1
           fi
           echo "version=${NODE_VER}" >> $GITHUB_OUTPUT
-          echo "Using blvm-node crates.io max_version: ${NODE_VER}"
-      
-      - name: Update Cargo.toml to use crates.io dependencies
+          echo "Using blvm-node max_version: ${NODE_VER}"
+
+      - name: Update Cargo.toml for release
         run: |
           set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           NODE_VER="${{ steps.node-version.outputs.version }}"
-          
           bump_package_version_in_file() {
             local file="$1"
             local ver="$2"
@@ -517,11 +775,8 @@ jobs:
               { print }
             ' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
           }
-
           bump_package_version_in_file "Cargo.toml" "$VERSION"
           bump_package_version_in_file "crates/blvm-sdk-macros/Cargo.toml" "$VERSION"
-
-          # Pin macros to exact published version while keeping path (workspace publish layout).
           awk -v ver="$VERSION" '
             /^blvm-sdk-macros = / {
               print "blvm-sdk-macros = { version = \"=" ver "\", path = \"crates/blvm-sdk-macros\" }"
@@ -529,8 +784,6 @@ jobs:
             }
             { print }
           ' Cargo.toml > Cargo.toml.dep.$$ && mv Cargo.toml.dep.$$ Cargo.toml
-
-          # Optional blvm-node: pin to released crates.io version (quoted semver in TOML).
           awk -v nv="$NODE_VER" '
             /^blvm-node = .*optional = true/ {
               print "blvm-node = { version = \"" nv "\", optional = true }"
@@ -538,44 +791,36 @@ jobs:
             }
             { print }
           ' Cargo.toml > Cargo.toml.node.$$ && mv Cargo.toml.node.$$ Cargo.toml
-
           actual_root=$(grep -A 8 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           actual_macros=$(grep -A 8 '^\[package\]' crates/blvm-sdk-macros/Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           if [ "$actual_root" != "$VERSION" ] || [ "$actual_macros" != "$VERSION" ]; then
-            echo "❌ Version bump verification failed (root=${actual_root} macros=${actual_macros} expected=${VERSION})"
+            echo "❌ Version bump verification failed"
             exit 1
           fi
-          echo "✅ Manifest versions verified at ${VERSION}"
-          
-          echo "Updated manifests for release ${VERSION}:"
-          grep -E "^version = " Cargo.toml crates/blvm-sdk-macros/Cargo.toml | head -5
-          grep "blvm-sdk-macros = " Cargo.toml | head -1
-          grep -E "^blvm-node" Cargo.toml | head -1
-      
+
       - name: Check for crates.io token
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "⚠️  CARGO_REGISTRY_TOKEN not set, skipping crate publication"
-            echo "   Set CARGO_REGISTRY_TOKEN secret to enable crate publishing"
+            echo "⚠️  CARGO_REGISTRY_TOKEN not set, skipping publication"
             exit 0
           fi
-      
+
       - name: Configure cargo for crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: cargo login "${CARGO_REGISTRY_TOKEN}"
-      
+
       - name: Verify package manifests
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
           (cd crates/blvm-sdk-macros && cargo package --list)
           cargo package --list
-      
+
       - name: Dry-run publish (macros, then SDK)
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
           (cd crates/blvm-sdk-macros && cargo publish --dry-run --no-verify --allow-dirty)
           cargo publish --dry-run --no-verify --allow-dirty
-      
+
       - name: Check if versions already on crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
         id: check-version
@@ -597,17 +842,17 @@ jobs:
             else
               echo "sdk_exists=${EXISTS}" >> $GITHUB_OUTPUT
             fi
-            echo "  ${CRATE} v${VERSION} exists on crates.io: ${EXISTS}"
+            echo "  ${CRATE} v${VERSION}: ${EXISTS}"
           done
-      
-      - name: Publish blvm-sdk-macros to crates.io
+
+      - name: Publish blvm-sdk-macros
         if: env.CARGO_REGISTRY_TOKEN != ''
         id: publish_macros
         run: |
           set +e
           VERSION="${{ steps.version.outputs.version }}"
           if [ "${{ steps.check-version.outputs.macros_exists }}" = "true" ]; then
-            echo "Skipping blvm-sdk-macros (already published)"
+            echo "Skipping macros (already published)"
             echo "published=true" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -616,26 +861,24 @@ jobs:
           echo "$OUT"
           if [ $CODE -eq 0 ]; then
             echo "published=true" >> $GITHUB_OUTPUT
-            echo "Waiting 45s for crates.io to index blvm-sdk-macros..."
             sleep 45
           elif echo "$OUT" | grep -qi "already exists"; then
-            echo "::error::blvm-sdk-macros publish rejected (version already exists) — version check was wrong or index race"
+            echo "::error::macros publish rejected (already exists)"
             echo "published=false" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "published=false" >> $GITHUB_OUTPUT
-            echo "::error::cargo publish failed for blvm-sdk-macros (see log above)"
             exit 1
           fi
-      
-      - name: Publish blvm-sdk to crates.io
+
+      - name: Publish blvm-sdk
         if: env.CARGO_REGISTRY_TOKEN != ''
         id: publish_sdk
         run: |
           set +e
           VERSION="${{ steps.version.outputs.version }}"
           if [ "${{ steps.check-version.outputs.sdk_exists }}" = "true" ]; then
-            echo "Skipping blvm-sdk (already published)"
+            echo "Skipping sdk (already published)"
             echo "published=true" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -644,18 +887,16 @@ jobs:
           echo "$OUT"
           if [ $CODE -eq 0 ]; then
             echo "published=true" >> $GITHUB_OUTPUT
-            echo "Waiting 30s for crates.io to index blvm-sdk..."
             sleep 30
           elif echo "$OUT" | grep -qi "already exists"; then
-            echo "::error::blvm-sdk publish rejected (version already exists) — version check was wrong or index race"
+            echo "::error::sdk publish rejected (already exists)"
             echo "published=false" >> $GITHUB_OUTPUT
             exit 1
           else
             echo "published=false" >> $GITHUB_OUTPUT
-            echo "::error::cargo publish failed for blvm-sdk (see log above)"
             exit 1
           fi
-      
+
       - name: Verify published crates on crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
@@ -672,3 +913,27 @@ jobs:
               [ $RETRY -lt 5 ] && sleep 10
             done
           done
+
+  teardown:
+    name: Teardown (cleanup runner disk)
+    runs-on: [self-hosted, Linux, X64, builds]
+    if: always()
+    needs:
+      - setup
+      - build-dev
+      - test
+      - clippy
+      - fmt
+      - docs
+      - security
+      - fuzz
+      - build
+    steps:
+      - name: Delete this run CI target dir
+        run: |
+          RUN_DIR="/tmp/gh-blvm-sdk-build/${{ github.run_id }}"
+          if [ -d "$RUN_DIR" ]; then
+            echo "Removing $RUN_DIR ($(du -sh "$RUN_DIR" | cut -f1))"
+            rm -rf "$RUN_DIR"
+          fi
+          df -h /
