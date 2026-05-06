@@ -23,7 +23,8 @@ fn parse_backend(s: &str) -> DatabaseBackend {
 /// Open the module's database at `{data_dir}/db/`.
 ///
 /// Uses the same backend as the node when `MODULE_CONFIG_DATABASE_BACKEND` is set
-/// (redb, rocksdb, sled, tidesdb, auto). Falls back to Redb for standalone mode or tests.
+/// (redb, rocksdb, sled, tidesdb, auto). Falls back to the node's compiled-in
+/// `default_backend()` (rocksdb when built with default features).
 ///
 /// # Example
 /// ```ignore
@@ -37,17 +38,34 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
     let backend = std::env::var("MODULE_CONFIG_DATABASE_BACKEND")
         .or_else(|_| std::env::var("MODULE_DATABASE_BACKEND"))
         .map(|s| parse_backend(&s))
-        .unwrap_or(DatabaseBackend::Redb);
-    match create_database(&db_path, backend, None) {
-        Ok(db) => Ok(Arc::from(db)),
-        Err(e) if backend != DatabaseBackend::Redb => {
-            warn!(
-                "Module DB backend {:?} not available ({}), falling back to Redb",
-                backend, e
-            );
-            create_database(&db_path, DatabaseBackend::Redb, None).map(Arc::from)
+        .unwrap_or_else(|_| default_backend());
+
+    // Redb and Sled support dynamic open_tree(); RocksDB and TidesDB require all column
+    // families to be pre-declared at open time, which is incompatible with the module
+    // system's on-demand tree creation. Auto-fallback to Redb (or Sled) when needed.
+    match backend {
+        DatabaseBackend::Redb | DatabaseBackend::Sled => {
+            create_database(&db_path, backend, None).map(Arc::from)
         }
-        Err(e) => Err(e),
+        other => {
+            warn!(
+                "Module DB backend {:?} does not support dynamic open_tree(); \
+                 falling back to Redb or Sled. Set MODULE_DATABASE_BACKEND=redb \
+                 (or sled) to suppress this warning.",
+                other
+            );
+            create_database(&db_path, DatabaseBackend::Redb, None)
+                .or_else(|_| create_database(&db_path, DatabaseBackend::Sled, None))
+                .map(Arc::from)
+                .map_err(|_| {
+                    anyhow::anyhow!(
+                        "Module DB backend {:?} requires pre-declared column families. \
+                         Enable the 'redb' or 'sled' feature on blvm-node, or set \
+                         MODULE_DATABASE_BACKEND to 'redb' or 'sled'.",
+                        other
+                    )
+                })
+        }
     }
 }
 
