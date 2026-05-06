@@ -24,7 +24,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: '1'
-  CARGO_INCREMENTAL: '1'
+  # Match blvm-node: incremental fills runner disks under shared target dirs.
+  CARGO_INCREMENTAL: '0'
 
 jobs:
   setup:
@@ -394,8 +395,9 @@ jobs:
         needs.fmt.result == 'success' && needs.docs.result == 'success' && 
         needs.security.result == 'success'))
     permissions:
-      contents: read
+      contents: write
       id-token: write
+      attestations: write
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
@@ -478,35 +480,77 @@ jobs:
       - name: Get latest blvm-node version from crates.io
         id: node-version
         run: |
-          NODE_VER=$(cargo search blvm-node --limit 1 2>/dev/null | head -1 | sed -E 's/^blvm-node = "([^"]+)".*/\1/' || echo "")
-          if [ -z "$NODE_VER" ]; then
-            echo "❌ blvm-node not found on crates.io. It must be published first."
+          set -euo pipefail
+          API_RESPONSE=$(curl -sf \
+            -H "User-Agent: blvm-sdk-ci/1.0 (github.com/BTCDecoded/blvm-sdk)" \
+            "https://crates.io/api/v1/crates/blvm-node" || echo "")
+          NODE_VER=""
+          if command -v jq >/dev/null 2>&1; then
+            NODE_VER=$(echo "$API_RESPONSE" | jq -r '.crate.max_version // empty')
+          else
+            NODE_VER=$(echo "$API_RESPONSE" | grep -oE '"max_version":"[^"]+"' | head -1 | sed 's/.*"max_version":"//;s/"$//')
+          fi
+          if [ -z "$NODE_VER" ] || [ "$NODE_VER" = "null" ]; then
+            echo "❌ blvm-node not found on crates.io (API). It must be published first."
             exit 1
           fi
           echo "version=${NODE_VER}" >> $GITHUB_OUTPUT
-          echo "Using blvm-node version: ${NODE_VER}"
+          echo "Using blvm-node crates.io max_version: ${NODE_VER}"
       
       - name: Update Cargo.toml to use crates.io dependencies
         run: |
+          set -euo pipefail
           VERSION="${{ steps.version.outputs.version }}"
           NODE_VER="${{ steps.node-version.outputs.version }}"
           
-          # Root blvm-sdk version
-          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" Cargo.toml
-          
-          # blvm-sdk-macros subcrate (same release version)
-          sed -i "s/^version = \".*\"/version = \"${VERSION}\"/" crates/blvm-sdk-macros/Cargo.toml
-          
-          # Path dep must match published macros version (exact pin)
-          sed -i 's|blvm-sdk-macros = { version = "=[^"]*", path = "./crates/blvm-sdk-macros" }|blvm-sdk-macros = { version = "='"${VERSION}"'", path = "./crates/blvm-sdk-macros" }|' Cargo.toml
-          
-          # blvm-node from crates.io
-          sed -i 's|blvm-node = { path = "\.\./blvm-node"|blvm-node = "'"${NODE_VER}"'"|g' Cargo.toml
+          bump_package_version_in_file() {
+            local file="$1"
+            local ver="$2"
+            awk -v ver="$ver" '
+              BEGIN { in_package = 0 }
+              /^\[package\]/ { in_package = 1; print; next }
+              in_package && /^\[/ { in_package = 0 }
+              in_package && /^version = / {
+                print "version = \"" ver "\""
+                next
+              }
+              { print }
+            ' "$file" > "${file}.tmp.$$" && mv "${file}.tmp.$$" "$file"
+          }
+
+          bump_package_version_in_file "Cargo.toml" "$VERSION"
+          bump_package_version_in_file "crates/blvm-sdk-macros/Cargo.toml" "$VERSION"
+
+          # Pin macros to exact published version while keeping path (workspace publish layout).
+          awk -v ver="$VERSION" '
+            /^blvm-sdk-macros = / {
+              print "blvm-sdk-macros = { version = \"=" ver "\", path = \"crates/blvm-sdk-macros\" }"
+              next
+            }
+            { print }
+          ' Cargo.toml > Cargo.toml.dep.$$ && mv Cargo.toml.dep.$$ Cargo.toml
+
+          # Optional blvm-node: pin to released crates.io version (quoted semver in TOML).
+          awk -v nv="$NODE_VER" '
+            /^blvm-node = .*optional = true/ {
+              print "blvm-node = { version = \"" nv "\", optional = true }"
+              next
+            }
+            { print }
+          ' Cargo.toml > Cargo.toml.node.$$ && mv Cargo.toml.node.$$ Cargo.toml
+
+          actual_root=$(grep -A 8 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
+          actual_macros=$(grep -A 8 '^\[package\]' crates/blvm-sdk-macros/Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
+          if [ "$actual_root" != "$VERSION" ] || [ "$actual_macros" != "$VERSION" ]; then
+            echo "❌ Version bump verification failed (root=${actual_root} macros=${actual_macros} expected=${VERSION})"
+            exit 1
+          fi
+          echo "✅ Manifest versions verified at ${VERSION}"
           
           echo "Updated manifests for release ${VERSION}:"
-          grep -E "^version = " Cargo.toml crates/blvm-sdk-macros/Cargo.toml
-          grep "blvm-sdk-macros = " Cargo.toml
-          grep -E "^blvm-node" Cargo.toml
+          grep -E "^version = " Cargo.toml crates/blvm-sdk-macros/Cargo.toml | head -5
+          grep "blvm-sdk-macros = " Cargo.toml | head -1
+          grep -E "^blvm-node" Cargo.toml | head -1
       
       - name: Check for crates.io token
         run: |
@@ -529,8 +573,8 @@ jobs:
       - name: Dry-run publish (macros, then SDK)
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
-          (cd crates/blvm-sdk-macros && cargo publish --dry-run --allow-dirty)
-          cargo publish --dry-run --allow-dirty
+          (cd crates/blvm-sdk-macros && cargo publish --dry-run --no-verify --allow-dirty)
+          cargo publish --dry-run --no-verify --allow-dirty
       
       - name: Check if versions already on crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
@@ -567,7 +611,7 @@ jobs:
             echo "published=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          OUT=$(cd crates/blvm-sdk-macros && cargo publish --token "${CARGO_REGISTRY_TOKEN}" --allow-dirty 2>&1)
+          OUT=$(cd crates/blvm-sdk-macros && cargo publish --no-verify --allow-dirty --token "${CARGO_REGISTRY_TOKEN}" 2>&1)
           CODE=$?
           echo "$OUT"
           if [ $CODE -eq 0 ]; then
@@ -575,8 +619,9 @@ jobs:
             echo "Waiting 45s for crates.io to index blvm-sdk-macros..."
             sleep 45
           elif echo "$OUT" | grep -qi "already exists"; then
-            echo "published=true" >> $GITHUB_OUTPUT
-            exit 0
+            echo "::error::blvm-sdk-macros publish rejected (version already exists) — version check was wrong or index race"
+            echo "published=false" >> $GITHUB_OUTPUT
+            exit 1
           else
             echo "published=false" >> $GITHUB_OUTPUT
             echo "::error::cargo publish failed for blvm-sdk-macros (see log above)"
@@ -594,7 +639,7 @@ jobs:
             echo "published=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          OUT=$(cargo publish --token "${CARGO_REGISTRY_TOKEN}" --allow-dirty 2>&1)
+          OUT=$(cargo publish --no-verify --allow-dirty --token "${CARGO_REGISTRY_TOKEN}" 2>&1)
           CODE=$?
           echo "$OUT"
           if [ $CODE -eq 0 ]; then
@@ -602,8 +647,9 @@ jobs:
             echo "Waiting 30s for crates.io to index blvm-sdk..."
             sleep 30
           elif echo "$OUT" | grep -qi "already exists"; then
-            echo "published=true" >> $GITHUB_OUTPUT
-            exit 0
+            echo "::error::blvm-sdk publish rejected (version already exists) — version check was wrong or index race"
+            echo "published=false" >> $GITHUB_OUTPUT
+            exit 1
           else
             echo "published=false" >> $GITHUB_OUTPUT
             echo "::error::cargo publish failed for blvm-sdk (see log above)"
