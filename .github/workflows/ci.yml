@@ -412,80 +412,61 @@ jobs:
       - name: Determine version
         id: version
         run: |
-          # Auto-increment patch version from Cargo.toml
-          # Extract only the package version (first version = after [package])
+          # Extract current version from [package] section
           CURRENT=$(grep -A 10 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           if [ -z "$CURRENT" ]; then
             echo "❌ Could not determine current version from Cargo.toml"
-            echo "Debug: Looking for version in [package] section"
             grep -A 10 '^\[package\]' Cargo.toml | head -10
             exit 1
           fi
-          
           echo "Current version: ${CURRENT}"
-          
-          # Validate version format (should be X.Y.Z)
           if ! echo "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
             echo "❌ Invalid version format: ${CURRENT} (expected X.Y.Z)"
             exit 1
           fi
-          
-          # Increment patch version (X.Y.Z -> X.Y.(Z+1))
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
-          
-          # Validate components are numeric
-          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]] || ! [[ "$MINOR" =~ ^[0-9]+$ ]] || ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then
-            echo "❌ Version components must be numeric: ${MAJOR}.${MINOR}.${PATCH}"
-            exit 1
-          fi
-          
           PATCH=$((PATCH + 1))
-          VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          
-          # Same version tag for blvm-sdk and blvm-sdk-macros; both must be free on crates.io
-          crate_version_exists() {
-            C="$1"
-            V="$2"
-            API_RESPONSE=$(curl -s --max-time 10 "https://crates.io/api/v1/crates/${C}/versions" 2>/dev/null || echo "")
-            if [ -n "$API_RESPONSE" ] && ! echo "$API_RESPONSE" | grep -q '"detail"'; then
-              if command -v jq &> /dev/null; then
-                X=$(echo "$API_RESPONSE" | jq -r ".versions[] | select(.num == \"${V}\") | .num" | head -1)
-                [ "$X" = "$V" ] && return 0
-              elif echo "$API_RESPONSE" | grep -q "\"num\":\"${V}\""; then
-                return 0
+
+          # Same version tag for blvm-sdk and blvm-sdk-macros; both must be free on crates.io.
+          # Fetch all published versions for each crate once upfront.
+          fetch_versions() {
+            local crate="$1"
+            local resp
+            resp=$(curl -sf \
+              -H "User-Agent: blvm-ci/1.0 (github.com/BTCDecoded)" \
+              "https://crates.io/api/v1/crates/${crate}/versions" 2>/dev/null || echo "")
+            if [ -n "$resp" ] && ! echo "$resp" | grep -q '"detail"'; then
+              if command -v jq &>/dev/null; then
+                echo "$resp" | jq -r '.versions[].num' 2>/dev/null || echo ""
+              else
+                echo "$resp" | grep -oE '"num":"[^"]+"' | sed 's/"num":"//;s/"//'
               fi
             fi
-            SO=$(cargo search "$C" --limit 100 2>/dev/null || echo "")
-            echo "$SO" | grep -qE "\"${C}\".*\"${V}\"" && return 0
-            return 1
           }
-          
+          echo "Fetching published versions for blvm-sdk and blvm-sdk-macros..."
+          SDK_VERSIONS=$(fetch_versions "blvm-sdk")
+          MACROS_VERSIONS=$(fetch_versions "blvm-sdk-macros")
+          echo "blvm-sdk: $(echo "$SDK_VERSIONS" | wc -l | tr -d ' ') versions, blvm-sdk-macros: $(echo "$MACROS_VERSIONS" | wc -l | tr -d ' ') versions"
+
           MAX_ATTEMPTS=10
           ATTEMPT=0
-          
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            echo "Checking blvm-sdk + blvm-sdk-macros v${VERSION} on crates.io..."
-            cargo update --dry-run 2>/dev/null || true
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
             EXISTS_SDK=false
             EXISTS_MACROS=false
-            crate_version_exists blvm-sdk "$VERSION" && EXISTS_SDK=true
-            crate_version_exists blvm-sdk-macros "$VERSION" && EXISTS_MACROS=true
+            echo "$SDK_VERSIONS" | grep -qxF "$VERSION" && EXISTS_SDK=true
+            echo "$MACROS_VERSIONS" | grep -qxF "$VERSION" && EXISTS_MACROS=true
             if [ "$EXISTS_SDK" = true ] || [ "$EXISTS_MACROS" = true ]; then
               echo "⚠️  blvm-sdk (${EXISTS_SDK}) or blvm-sdk-macros (${EXISTS_MACROS}) already has v${VERSION}; bumping patch..."
-              MAJOR=$(echo "$VERSION" | cut -d. -f1)
-              MINOR=$(echo "$VERSION" | cut -d. -f2)
-              PATCH=$(echo "$VERSION" | cut -d. -f3)
               PATCH=$((PATCH + 1))
-              VERSION="${MAJOR}.${MINOR}.${PATCH}"
               ATTEMPT=$((ATTEMPT + 1))
             else
               echo "✅ v${VERSION} is available for both crates"
               break
             fi
           done
-          
           if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
             echo "❌ Failed to find available version after ${MAX_ATTEMPTS} attempts"
             exit 1
