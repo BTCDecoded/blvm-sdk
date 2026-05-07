@@ -1,8 +1,9 @@
 name: CI
 
 
-# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security]
+# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security], [skip_verify], [skip_release]
 # [skip_docs] also skips clippy and fmt.
+# [skip_verify] skips the release-profile build job (`cargo build --release`).
 
 on:
   push:
@@ -173,7 +174,7 @@ jobs:
         env:
           CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: |
-          # Matches tarpaulin test run (no --all-features): one full compile shared with test/clippy/doc.
+          # One compile shared with test/clippy; default features (optional features via clippy step).
           # Optional features (wasm-modules, registry, git) are checked by a second clippy step (incremental).
           cargo test --no-run
 
@@ -583,6 +584,8 @@ jobs:
        (!contains(github.event.head_commit.message, '[skip ci]') &&
         !contains(github.event.head_commit.message, '[ci skip]') &&
         !contains(github.event.head_commit.message, '[no ci]'))) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_verify]')) &&
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
        ((needs.test.result == 'success' || needs.test.result == 'skipped') &&
         (needs.clippy.result == 'success' || needs.clippy.result == 'skipped') &&
