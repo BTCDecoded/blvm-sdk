@@ -940,6 +940,40 @@ jobs:
             done
           done
 
+      - name: Create and push version tag
+        run: |
+          VERSION_TAG="v${{ steps.version.outputs.version }}"
+          git config user.email "ci@btcdecoded.com"
+          git config user.name "BLVM CI"
+          if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
+            echo "⚠️  Tag ${VERSION_TAG} already exists, skipping"
+          else
+            git tag -a "$VERSION_TAG" -m "Release ${VERSION_TAG}"
+            git push origin "$VERSION_TAG"
+            echo "✅ Created and pushed tag ${VERSION_TAG}"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          body: |
+            ## v${{ steps.version.outputs.version }}
+
+            Automated release of blvm-sdk.
+
+            **Published to crates.io**:
+            - blvm-sdk-macros: ${{ steps.publish_macros.outputs.published == 'true' && '✅ Yes' || (steps.check-version.outputs.macros_exists == 'true' && '⚠️  Already existed' || '❌ Failed or skipped') }}
+            - blvm-sdk: ${{ steps.publish_sdk.outputs.published == 'true' && '✅ Yes' || (steps.check-version.outputs.sdk_exists == 'true' && '⚠️  Already existed' || '❌ Failed or skipped') }}
+
+            ### Changes
+            See [commit history](https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   teardown:
     name: Teardown (cleanup runner disk)
     runs-on: [self-hosted, Linux, X64, builds]
