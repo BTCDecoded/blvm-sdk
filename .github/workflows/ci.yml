@@ -957,17 +957,28 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: Release v${{ steps.version.outputs.version }}
+          name: blvm-sdk v${{ steps.version.outputs.version }}
           body: |
-            ## v${{ steps.version.outputs.version }}
+            # blvm-sdk v${{ steps.version.outputs.version }}
 
-            Automated release of blvm-sdk.
+            **Bitcoin Commons BLVM SDK** — build Bitcoin modules and WASM extensions for blvm-node.
 
-            **Published to crates.io**:
-            - blvm-sdk-macros: ${{ steps.publish_macros.outputs.published == 'true' && '✅ Yes' || (steps.check-version.outputs.macros_exists == 'true' && '⚠️  Already existed' || '❌ Failed or skipped') }}
-            - blvm-sdk: ${{ steps.publish_sdk.outputs.published == 'true' && '✅ Yes' || (steps.check-version.outputs.sdk_exists == 'true' && '⚠️  Already existed' || '❌ Failed or skipped') }}
+            ## Crates
 
-            ### Changes
+            | Crate | Version | Status |
+            |---|---|---|
+            | [`blvm-sdk`](https://crates.io/crates/blvm-sdk) | `${{ steps.version.outputs.version }}` | ${{ steps.publish_sdk.outputs.published == 'true' && '✅ Published' || (steps.check-version.outputs.sdk_exists == 'true' && '⚠️ Already existed' || '❌ Failed or skipped') }} |
+            | [`blvm-sdk-macros`](https://crates.io/crates/blvm-sdk-macros) | `${{ steps.version.outputs.version }}` | ${{ steps.publish_macros.outputs.published == 'true' && '✅ Published' || (steps.check-version.outputs.macros_exists == 'true' && '⚠️ Already existed' || '❌ Failed or skipped') }} |
+
+            ## Usage
+
+            ```toml
+            [dependencies]
+            blvm-sdk = "${{ steps.version.outputs.version }}"
+            ```
+
+            ## Changes
+
             See [commit history](https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }})
           draft: false
           prerelease: false
