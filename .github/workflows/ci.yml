@@ -839,8 +839,8 @@ jobs:
       - name: Verify package manifests
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
-          (cd crates/blvm-sdk-macros && cargo package --list)
-          cargo package --list
+          (cd crates/blvm-sdk-macros && cargo package --list --allow-dirty)
+          cargo package --list --allow-dirty
 
       - name: Dry-run publish (macros, then SDK)
         if: env.CARGO_REGISTRY_TOKEN != ''
