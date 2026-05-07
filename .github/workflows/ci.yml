@@ -2,6 +2,7 @@ name: CI
 
 
 # Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security]
+# [skip_docs] also skips clippy and fmt.
 
 on:
   push:
@@ -304,6 +305,8 @@ jobs:
         !contains(github.event.head_commit.message, '[no ci]'))) &&
       (github.event_name != 'push' || github.event.head_commit == null ||
        !contains(github.event.head_commit.message, '[skip_tests]')) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_docs]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
@@ -380,6 +383,8 @@ jobs:
         !contains(github.event.head_commit.message, '[no ci]'))) &&
       (github.event_name != 'push' || github.event.head_commit == null ||
        !contains(github.event.head_commit.message, '[skip_tests]')) &&
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       !contains(github.event.head_commit.message, '[skip_docs]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
     steps:
       - uses: actions/checkout@v4
