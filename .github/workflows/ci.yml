@@ -4,6 +4,8 @@ name: CI
 # Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security], [skip_verify], [skip_release]
 # [skip_docs] also skips clippy and fmt.
 # [skip_verify] skips the release-profile build job (`cargo build --release`).
+# Release still runs on main when prerequisites are skipped intentionally: the message
+# must include the token that caused each skip ([skip_tests], [skip_docs], etc.), including cascades.
 
 on:
   push:
@@ -657,12 +659,14 @@ jobs:
         !contains(github.event.head_commit.message, '[no ci]') &&
         !contains(github.event.head_commit.message, '[skip release]'))) &&
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
-       (needs.test.result == 'success' &&
-        needs.clippy.result == 'success' &&
-        needs.fmt.result == 'success' &&
-        needs.docs.result == 'success' &&
-        needs.security.result == 'success' &&
-        (needs.fuzz.result == 'success' || needs.fuzz.result == 'skipped')))
+       (
+         (needs.test.result == 'success' || (needs.test.result == 'skipped' && github.event.head_commit != null && contains(github.event.head_commit.message, '[skip_tests]'))) &&
+         (needs.clippy.result == 'success' || (needs.clippy.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
+         (needs.fmt.result == 'success' || (needs.fmt.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
+         (needs.docs.result == 'success' || (needs.docs.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
+         (needs.security.result == 'success' || (needs.security.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_security]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
+         (needs.fuzz.result == 'success' || (needs.fuzz.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_fuzz]') || contains(github.event.head_commit.message, '[skip_tests]'))))
+       ))
     permissions:
       contents: write
       id-token: write
