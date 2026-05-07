@@ -842,11 +842,10 @@ jobs:
           (cd crates/blvm-sdk-macros && cargo package --list --allow-dirty)
           cargo package --list --allow-dirty
 
-      - name: Dry-run publish (macros, then SDK)
+      - name: Dry-run publish (macros only — SDK depends on macros so full dry-run needs macros published first)
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
           (cd crates/blvm-sdk-macros && cargo publish --dry-run --no-verify --allow-dirty)
-          cargo publish --dry-run --no-verify --allow-dirty
 
       - name: Check if versions already on crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
