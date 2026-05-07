@@ -4,8 +4,7 @@ name: CI
 # Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security], [skip_verify], [skip_release]
 # [skip_docs] also skips clippy and fmt.
 # [skip_verify] skips the release-profile build job (`cargo build --release`).
-# Release still runs on main when prerequisites are skipped intentionally: the message
-# must include the token that caused each skip ([skip_tests], [skip_docs], etc.), including cascades.
+# Tokens are matched against setup.commit_msg_bundle (git log range) plus head_commit when set.
 
 on:
   push:
@@ -46,6 +45,8 @@ jobs:
         !contains(github.event.head_commit.message, '[no ci]')))
     outputs:
       cache-key: ${{ steps.setup-cache.outputs.cache-key }}
+      # All pushed commit bodies (push only). head_commit.message is often null on multi-commit pushes — use this for skip tokens + release gates.
+      commit_msg_bundle: ${{ steps.commit-msg-bundle.outputs.bundle }}
     steps:
       - name: Emergency pre-flight disk cleanup
         run: |
@@ -93,6 +94,22 @@ jobs:
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Commit message bundle (push payloads often omit head_commit)
+        id: commit-msg-bundle
+        shell: bash
+        run: |
+          echo 'bundle<<COMMIT_MSG_BUNDLE_EOF' >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              git log --pretty=%B "${BEFORE}..${AFTER}" 2>/dev/null || git log -1 --pretty=%B
+            else
+              git log -1 --pretty=%B
+            fi
+          fi
+          echo 'COMMIT_MSG_BUNDLE_EOF' >> "$GITHUB_OUTPUT"
 
       - name: Cache key
         id: setup-cache
@@ -649,23 +666,27 @@ jobs:
     runs-on: [self-hosted, Linux, X64, builds]
     if: |
       always() &&
+      needs.setup.result == 'success' &&
       needs.build.result == 'success' &&
       (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
-      (github.event.head_commit == null ||
-       (!contains(github.event.head_commit.message, '[skip ci]') &&
-        !contains(github.event.head_commit.message, '[ci skip]') &&
-        !contains(github.event.head_commit.message, '[no ci]') &&
-        !contains(github.event.head_commit.message, '[skip release]'))) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[skip ci]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[skip ci]')) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[ci skip]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[ci skip]')) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[no ci]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[no ci]')) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[skip release]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[skip release]')) &&
       ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
        (
-         (needs.test.result == 'success' || (needs.test.result == 'skipped' && github.event.head_commit != null && contains(github.event.head_commit.message, '[skip_tests]'))) &&
-         (needs.clippy.result == 'success' || (needs.clippy.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
-         (needs.fmt.result == 'success' || (needs.fmt.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
-         (needs.docs.result == 'success' || (needs.docs.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
-         (needs.security.result == 'success' || (needs.security.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_security]') || contains(github.event.head_commit.message, '[skip_tests]')))) &&
-         (needs.fuzz.result == 'success' || (needs.fuzz.result == 'skipped' && github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_fuzz]') || contains(github.event.head_commit.message, '[skip_tests]'))))
+         (needs.test.result == 'success' || (needs.test.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && contains(github.event.head_commit.message, '[skip_tests]'))))) &&
+         (needs.clippy.result == 'success' || (needs.clippy.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.fmt.result == 'success' || (needs.fmt.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.docs.result == 'success' || (needs.docs.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.security.result == 'success' || (needs.security.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_security]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_security]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.fuzz.result == 'success' || (needs.fuzz.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_fuzz]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_fuzz]') || contains(github.event.head_commit.message, '[skip_tests]'))))))
        ))
     permissions:
       contents: write
