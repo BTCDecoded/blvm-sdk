@@ -1,0 +1,4 @@
+name = "hello"
+version = "0.1.0"
+description = "Minimal hello module example"
+entry_point = "hello-module"

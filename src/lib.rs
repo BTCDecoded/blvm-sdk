@@ -1,0 +1,119 @@
+//! # Developer SDK
+//!
+//! Governance infrastructure and composition framework for Bitcoin.
+//!
+//! This crate provides the **institutional layer** for Bitcoin governance, offering
+//! reusable governance primitives and a composition framework for building alternative
+//! Bitcoin implementations.
+//!
+//! ## Architecture Position
+//!
+//! This is **Tier 5** of the 5-tier BTCDecoded architecture:
+//!
+//! <!--
+//! blvm-spec (Orange Paper) -> blvm-consensus -> blvm-protocol -> blvm-node -> blvm-sdk
+//! -->
+//!
+//! ## Core Components
+//!
+//! ### Governance Primitives
+//! - **Cryptographic key management** for governance operations
+//! - **Signature creation and verification** using Bitcoin-compatible standards
+//! - **Multisig threshold logic** for collective decision making
+//! - **Message formats** for releases, module approvals, and budget decisions
+//!
+//! ### CLI Tools
+//! - `blvm-keygen` - Generate governance keypairs
+//! - `blvm-sign` - Sign governance messages
+//! - `blvm-verify` - Verify signatures and multisig thresholds
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use blvm_sdk::{
+//!     GovernanceKeypair, GovernanceMessage, Multisig, sign_message
+//! };
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Generate a keypair
+//! let keypair = GovernanceKeypair::generate()?;
+//!
+//! // Create a message to sign
+//! let message = GovernanceMessage::Release {
+//!     version: "v1.0.0".to_string(),
+//!     commit_hash: "abc123".to_string(),
+//! };
+//!
+//! // Sign the message
+//! let signature = sign_message(&keypair.secret_key, &message.to_signing_bytes())?;
+//!
+//! // Verify with multisig (example with 1-of-1)
+//! let maintainer_keys = vec![keypair.public_key()];
+//! let multisig = Multisig::new(1, 1, maintainer_keys)?;
+//! let valid = multisig.verify(&message.to_signing_bytes(), &[signature])?;
+//! assert!(valid);
+//! # Ok(())
+//! # }
+//! ```
+
+pub mod cli;
+#[cfg(feature = "node")]
+pub mod composition;
+pub mod governance;
+#[cfg(any(feature = "node", feature = "wasm-modules"))]
+pub mod module;
+
+// Re-export main types for convenience
+pub use governance::{
+    GovernanceError, GovernanceKeypair, GovernanceMessage, GovernanceResult, Multisig, PublicKey,
+    Signature,
+};
+
+// Re-export governance functions
+pub use governance::signatures::{sign_message, verify_signature};
+
+// Re-export composition framework (requires node)
+#[cfg(feature = "node")]
+pub use composition::{
+    ComposedNode, ModuleHealth, ModuleInfo, ModuleLifecycle, ModuleRegistry, ModuleSource,
+    ModuleSpec, ModuleStatus, NetworkType, NodeComposer, NodeConfig, NodeSpec,
+};
+
+// Re-export module development APIs (requires node)
+#[cfg(feature = "node")]
+pub use module::{
+    open_module_db,
+    CorrelationId,
+    EventMessage,
+    EventPayload,
+    EventType,
+    MessageType,
+    // Traits
+    Module,
+    ModuleContext,
+    ModuleError,
+    // IPC
+    ModuleIpcClient,
+    // Manifest
+    ModuleManifest,
+    // IPC Protocol
+    ModuleMessage,
+    ModuleMetadata,
+    ModuleState,
+    NodeAPI,
+    // Security
+    Permission,
+    PermissionSet,
+    RequestMessage,
+    RequestPayload,
+    ResponseMessage,
+    ResponsePayload,
+};
+
+/// WASM module runtime (when `wasm-modules` feature is enabled).
+#[cfg(feature = "wasm-modules")]
+pub use module::wasm::{WasmHostContext, WasmModuleInstance, WasmStorage, WasmTree};
+
+/// WASM loader for blvm-node (when both `node` and `wasm-modules` are enabled).
+#[cfg(all(feature = "node", feature = "wasm-modules"))]
+pub use module::wasm::BlvmSdkWasmLoader;
