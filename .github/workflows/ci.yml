@@ -517,7 +517,7 @@ jobs:
           cargo audit
 
   fuzz:
-    name: Fuzz (${{ matrix.target }})
+    name: Fuzz
     needs: [setup, test]
     runs-on: [self-hosted, Linux, X64, builds]
     timeout-minutes: 30
@@ -529,13 +529,6 @@ jobs:
       (github.event_name != 'push' || github.event.head_commit == null ||
        !contains(github.event.head_commit.message, '[skip_fuzz]')) &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        target:
-          - sdk_governance_keys
-          - sdk_parse_roundtrip
     steps:
       - uses: actions/checkout@v4
 
@@ -568,13 +561,33 @@ jobs:
           chmod +x init_corpus.sh
           ./init_corpus.sh
 
-      - name: Run cargo-fuzz (${{ matrix.target }})
+      - name: Run all fuzz targets in parallel
         working-directory: fuzz
         env:
-          RUSTFLAGS: "-Cpasses=sancov-module -Cllvm-args=-sanitizer-coverage-level=4"
+          # --no-gc-sections: prevents lld from discarding sancov instrumented sections
+          # (sancov module_ctor symbols are referenced via .init_array and need to survive GC)
+          RUSTFLAGS: "-Cpasses=sancov-module -Cllvm-args=-sanitizer-coverage-level=4 -Clink-arg=-Wl,--no-gc-sections"
         run: |
           export PATH="$HOME/.cargo/bin:$PATH"
-          timeout 240 cargo +nightly fuzz run "${{ matrix.target }}" -- -max_total_time=120 -timeout=10 -max_len=65536
+          TARGETS="sdk_governance_keys sdk_parse_roundtrip"
+          FAILED=""
+          run_target() {
+            local target="$1"
+            echo "▶ fuzzing $target"
+            if timeout 240 cargo +nightly fuzz run "$target" -- \
+                -max_total_time=120 -timeout=10 -max_len=65536 \
+                2>&1 | sed "s/^/[$target] /"; then
+              echo "✅ $target passed"
+            else
+              echo "❌ $target FAILED"
+              return 1
+            fi
+          }
+          export -f run_target
+          echo "$TARGETS" | tr ' ' '\n' \
+            | xargs -P$(nproc) -I{} bash -c 'run_target "$@"' _ {} \
+            || FAILED=1
+          [ -z "$FAILED" ] || { echo "One or more fuzz targets failed"; exit 1; }
 
       - name: Save Cargo cache
         if: always()
