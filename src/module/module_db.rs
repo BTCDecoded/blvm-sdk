@@ -52,20 +52,16 @@ impl ModuleDb {
         Ok(db)
     }
 
-    /// Open at data_dir, or fallback to temp dir when data_dir fails (e.g. standalone without data dir).
+    /// Open at data_dir, or fallback to temp dir when primary open fails.
+    ///
+    /// Both attempts use [`open_module_db`](super::database::open_module_db) (Sled/TidesDB).
+    /// Avoids a hard-coded Redb fallback, which fails when `blvm-node` is built without `redb`.
     pub fn open_or_temp<P: AsRef<Path>>(data_dir: P, module_name: &str) -> Result<Self> {
+        let data_dir = data_dir.as_ref().to_path_buf();
         Self::open(&data_dir).or_else(|_| {
             let temp = std::env::temp_dir().join(module_name);
-            Self::open(&temp).or_else(|_| {
-                let dir = temp.join("db");
-                std::fs::create_dir_all(&dir).ok();
-                let db = blvm_node::storage::database::create_database(
-                    &dir,
-                    blvm_node::storage::database::DatabaseBackend::Redb,
-                    None,
-                )?;
-                Ok(Self { db: Arc::from(db) })
-            })
+            let _ = std::fs::create_dir_all(&temp);
+            Self::open(&temp)
         })
     }
 

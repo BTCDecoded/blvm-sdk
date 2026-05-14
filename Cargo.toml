@@ -70,16 +70,13 @@ blvm-secp256k1 = { path = "../blvm-secp256k1" }
 default = ["node"]
 registry = ["dep:reqwest", "dep:flate2", "dep:tar"]
 git = ["dep:git2"]
-node = ["dep:blvm-node"]
+node = ["dep:blvm-node", "blvm-node/sled"]
 wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
 
 [dev-dependencies]
 # Testing
 criterion = "=0.5.1"  # Benchmarking
 tempfile = "=3.8.1"  # Temporary files for tests
-# Enable sled in test builds so open_module_db auto-selects a fully-dynamic backend
-# (RocksDB is the node default but requires pre-declared CFs; Sled creates trees on demand)
-blvm-node = { version = ">=0.1, <1", features = ["sled"] }
 
 [[example]]
 name = "hello-module"

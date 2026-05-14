@@ -1,10 +1,18 @@
 //! Module database utilities
 //!
 //! Each module has its own database at `{data_dir}/db/`. Use this helper to open it.
-//! Modules use the same format as the node by default (via MODULE_CONFIG_DATABASE_BACKEND).
+//!
+//! `MODULE_CONFIG_DATABASE_BACKEND` is normally set by the node when spawning a module, from
+//! `[storage] database_backend` and optional `[modules] module_database_backend` (see
+//! `blvm_node::storage::database::module_subprocess_database_backend_preference`). That value
+//! matches the chain store name; if it is not suitable for dynamic module trees (RocksDB / Redb),
+//! this crate falls back via [`try_create_module_kv_database`](blvm_node::storage::database::try_create_module_kv_database)
+//! to **Sled** and/or **TidesDB** depending on what that `blvm-node` binary was compiled with.
 
 use anyhow::Result;
-use blvm_node::storage::database::{create_database, default_backend, Database, DatabaseBackend};
+use blvm_node::storage::database::{
+    create_database, default_backend, try_create_module_kv_database, Database, DatabaseBackend,
+};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::warn;
@@ -49,13 +57,13 @@ fn best_module_backend() -> DatabaseBackend {
 /// pre-declared tables; RocksDB requires all column families to be declared at open time.
 ///
 /// Backend selection (first match wins):
-/// 1. `MODULE_CONFIG_DATABASE_BACKEND` env var (`sled`, `tidesdb`, `redb`, `rocksdb`, `auto`)
-/// 2. `MODULE_DATABASE_BACKEND` env var (same values)
-/// 3. Auto-select best available: Sled → TidesDB → fallback with a warning
+/// 1. `MODULE_CONFIG_DATABASE_BACKEND` — set by the node from effective module DB policy (see
+///    `blvm_node::storage::database::module_subprocess_database_backend_preference`)
+/// 2. `MODULE_DATABASE_BACKEND` env var (same values; manual override)
+/// 3. Auto-select Sled as first choice, then fall back through [`try_create_module_kv_database`](blvm_node::storage::database::try_create_module_kv_database)
 ///
 /// If the resolved backend does not support dynamic trees the function warns and falls back
-/// to the best available dynamic backend. If no dynamic backend is compiled in, it returns
-/// an error.
+/// as above. If no dynamic backend is compiled into `blvm-node`, it returns an error.
 ///
 /// # Example
 /// ```ignore
@@ -103,16 +111,13 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
         );
     }
 
-    // Try Sled then TidesDB as fallbacks.
-    create_database(&db_path, DatabaseBackend::Sled, None)
-        .or_else(|_| create_database(&db_path, DatabaseBackend::TidesDB, None))
+    // Use whichever dynamic KV backends are compiled into blvm-node (Sled / TidesDB).
+    try_create_module_kv_database(&db_path)
         .map(Arc::from)
-        .map_err(|_| {
+        .map_err(|e| {
             anyhow::anyhow!(
-                "No module-compatible database backend available. \
-                 Backend {:?} requires pre-declared trees/column families. \
-                 Recompile with the 'sled' or 'tidesdb' feature on blvm-node, \
-                 or set MODULE_CONFIG_DATABASE_BACKEND=sled.",
+                "{e} (hint: {:?} is not usable for arbitrary module `open_tree` names; \
+                 `blvm-sdk` feature `node` enables `blvm-node/sled`, or build `blvm-node` with `tidesdb`)",
                 backend
             )
         })
