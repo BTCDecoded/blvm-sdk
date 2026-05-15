@@ -733,8 +733,7 @@ jobs:
           fi
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
-          PATCH=$(echo "$CURRENT" | cut -d. -f3)
-          PATCH=$((PATCH + 1))
+          CURRENT_PATCH=$(echo "$CURRENT" | cut -d. -f3)
           fetch_versions() {
             local crate="$1"
             local resp
@@ -752,27 +751,18 @@ jobs:
           echo "Fetching published versions for blvm-sdk and blvm-sdk-macros..."
           SDK_VERSIONS=$(fetch_versions "blvm-sdk")
           MACROS_VERSIONS=$(fetch_versions "blvm-sdk-macros")
-          MAX_ATTEMPTS=10
-          ATTEMPT=0
-          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          USED_VERSIONS=$(printf '%s\n%s' "$SDK_VERSIONS" "$MACROS_VERSIONS" | sort -u | grep -v '^$')
+          SAME_LINE_PATCHES=$(printf '%s\n' "$USED_VERSIONS" | grep -E "^${MAJOR}\\.${MINOR}\\.[0-9]+$" | cut -d. -f3 || true)
+          MAX_PATCH=$(printf '%s\n' $SAME_LINE_PATCHES "$CURRENT_PATCH" | grep -E '^[0-9]+$' | sort -n | tail -1)
+          [ -n "$MAX_PATCH" ] || MAX_PATCH="$CURRENT_PATCH"
+          PATCH=$((MAX_PATCH + 1))
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          while echo "$SDK_VERSIONS" | grep -qxF "$VERSION" || echo "$MACROS_VERSIONS" | grep -qxF "$VERSION"; do
+            echo "⚠️  v${VERSION} taken; bumping patch..."
+            PATCH=$((PATCH + 1))
             VERSION="${MAJOR}.${MINOR}.${PATCH}"
-            EXISTS_SDK=false
-            EXISTS_MACROS=false
-            echo "$SDK_VERSIONS" | grep -qxF "$VERSION" && EXISTS_SDK=true
-            echo "$MACROS_VERSIONS" | grep -qxF "$VERSION" && EXISTS_MACROS=true
-            if [ "$EXISTS_SDK" = true ] || [ "$EXISTS_MACROS" = true ]; then
-              echo "⚠️  v${VERSION} taken; bumping patch..."
-              PATCH=$((PATCH + 1))
-              ATTEMPT=$((ATTEMPT + 1))
-            else
-              echo "✅ v${VERSION} available for both crates"
-              break
-            fi
           done
-          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-            echo "❌ Failed to find available version after ${MAX_ATTEMPTS} attempts"
-            exit 1
-          fi
+          echo "✅ v${VERSION} available for both crates"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "✅ Releasing version: ${VERSION}"
 
