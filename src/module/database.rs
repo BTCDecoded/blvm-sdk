@@ -6,13 +6,12 @@
 //! `[storage] database_backend` and optional `[modules] module_database_backend` (see
 //! `blvm_node::storage::database::module_subprocess_database_backend_preference`). That value
 //! matches the chain store name; if it is not suitable for dynamic module trees (RocksDB / Redb),
-//! this crate falls back via [`try_create_module_kv_database`](blvm_node::storage::database::try_create_module_kv_database)
-//! to **Sled** and/or **TidesDB** depending on what that `blvm-node` binary was compiled with.
+//! this crate falls back by trying **Sled** then **TidesDB** via
+//! [`create_database`](blvm_node::storage::database::create_database) (same order as
+//! `try_create_module_kv_database` in newer `blvm-node`).
 
 use anyhow::Result;
-use blvm_node::storage::database::{
-    create_database, default_backend, try_create_module_kv_database, Database, DatabaseBackend,
-};
+use blvm_node::storage::database::{create_database, default_backend, Database, DatabaseBackend};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::warn;
@@ -50,6 +49,26 @@ fn best_module_backend() -> DatabaseBackend {
     DatabaseBackend::Sled
 }
 
+/// Try Sled then TidesDB for a module-process KV store (dynamic `open_tree` names).
+///
+/// Uses only [`create_database`] so this builds against `blvm-node` releases that predate the
+/// `try_create_module_kv_database` helper.
+fn try_open_dynamic_module_kv(db_path: &Path) -> Result<Arc<dyn Database>> {
+    let sled_err = match create_database(db_path, DatabaseBackend::Sled, None) {
+        Ok(db) => return Ok(Arc::from(db)),
+        Err(e) => e,
+    };
+    match create_database(db_path, DatabaseBackend::TidesDB, None) {
+        Ok(db) => Ok(Arc::from(db)),
+        Err(e) => Err(anyhow::anyhow!(
+            "Failed to open module KV store at {:?}: sled: {}; tidesdb: {}",
+            db_path,
+            sled_err,
+            e
+        )),
+    }
+}
+
 /// Open the module's database at `{data_dir}/db/`.
 ///
 /// Module databases need to create named trees on demand (`open_tree()`). Only **Sled** and
@@ -60,7 +79,8 @@ fn best_module_backend() -> DatabaseBackend {
 /// 1. `MODULE_CONFIG_DATABASE_BACKEND` — set by the node from effective module DB policy (see
 ///    `blvm_node::storage::database::module_subprocess_database_backend_preference`)
 /// 2. `MODULE_DATABASE_BACKEND` env var (same values; manual override)
-/// 3. Auto-select Sled as first choice, then fall back through [`try_create_module_kv_database`](blvm_node::storage::database::try_create_module_kv_database)
+/// 3. Auto-select Sled as first choice, then fall back through Sled→TidesDB
+///    [`create_database`](blvm_node::storage::database::create_database) attempts
 ///
 /// If the resolved backend does not support dynamic trees the function warns and falls back
 /// as above. If no dynamic backend is compiled into `blvm-node`, it returns an error.
@@ -112,15 +132,13 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
     }
 
     // Use whichever dynamic KV backends are compiled into blvm-node (Sled / TidesDB).
-    try_create_module_kv_database(&db_path)
-        .map(Arc::from)
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "{e} (hint: {:?} is not usable for arbitrary module `open_tree` names; \
-                 `blvm-sdk` feature `node` enables `blvm-node/sled`, or build `blvm-node` with `tidesdb`)",
-                backend
-            )
-        })
+    try_open_dynamic_module_kv(&db_path).map_err(|e| {
+        anyhow::anyhow!(
+            "{e} (hint: {:?} is not usable for arbitrary module `open_tree` names; \
+             `blvm-sdk` feature `node` enables `blvm-node/sled`, or build `blvm-node` with `tidesdb`)",
+            backend
+        )
+    })
 }
 
 /// Schema version key (stored in the schema tree).
