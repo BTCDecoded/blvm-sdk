@@ -100,6 +100,14 @@ pub fn payload_fields_for_event(event_ident: &str) -> Option<Vec<(&'static str, 
             ],
         ),
         ("PeerUnbanned", vec![("peer_addr", false)]),
+        (
+            "CompanionUdpPeerRegistered",
+            vec![("p2p_peer_addr", false), ("udp_addr", false)],
+        ),
+        (
+            "CompanionUdpPeerUnregistered",
+            vec![("p2p_peer_addr", false)],
+        ),
         // Mesh (blvm-mesh): serialized mesh frame from a P2P peer
         (
             "MeshPacketReceived",
