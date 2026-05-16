@@ -44,7 +44,8 @@ clap = { version = "=4.4.11", features = ["derive"] }
 
 # Composition framework dependencies
 toml = "=0.8.2"
-blvm-node = { version = ">=0.1, <1", optional = true }
+# Modules use sled for `open_module_db`; do not pull `blvm-node` default `rocksdb` (heavy in CI/cross).
+blvm-node = { version = ">=0.1, <1", optional = true, default-features = false }
 tokio = { version = "=1.48.0", features = ["rt", "macros", "sync", "fs"] }
 tracing = "0.1"
 reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
@@ -68,7 +69,18 @@ blvm-secp256k1 = { path = "../blvm-secp256k1" }
 default = ["node"]
 registry = ["dep:reqwest", "dep:flate2", "dep:tar"]
 git = ["dep:git2"]
-node = ["dep:blvm-node", "blvm-node/sled"]
+# Match historical `blvm-node` default **minus** `rocksdb` (avoids librocksdb-sys in module/out-of-process builds).
+node = [
+    "dep:blvm-node",
+    "blvm-node/sled",
+    "blvm-node/sysinfo",
+    "blvm-node/nix",
+    "blvm-node/libc",
+    "blvm-node/production",
+    "blvm-node/governance",
+    "blvm-node/utxo-commitments",
+    "blvm-node/protocol-verification",
+]
 wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
 
 [dev-dependencies]
