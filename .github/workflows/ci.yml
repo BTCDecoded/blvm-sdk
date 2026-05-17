@@ -114,7 +114,7 @@ jobs:
       - name: Cache key
         id: setup-cache
         run: |
-          CACHE_ROOT="/tmp/runner-cache"
+          CACHE_ROOT="/tmp/runner-cache/${{ github.repository }}"
           DEPS_KEY=$(sha256sum Cargo.toml | cut -d' ' -f1)
           TOOLCHAIN=$(grep -E '^channel|rust-version' rust-toolchain.toml Cargo.toml 2>/dev/null | head -1 | sha256sum | cut -d' ' -f1 || echo "1.88.0")
           CACHE_KEY="${DEPS_KEY}-${TOOLCHAIN}"
