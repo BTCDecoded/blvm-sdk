@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
-use wasmtime::{Engine, Extern, Linker};
+use wasmtime::{Engine, Extern, Linker, StoreLimits};
 
 /// Key-value pair for WASM host storage iteration.
 type WasmKvPair = (Vec<u8>, Vec<u8>);
@@ -34,10 +34,16 @@ pub struct WasmHostContext {
     next_tree_id: RefCell<i32>,
     iters: RefCell<HashMap<i32, IterState>>,
     next_iter_id: RefCell<i32>,
+    /// [`StoreLimits`] wired via [`wasmtime::Store::limiter`] for memory/instance caps.
+    pub(crate) wasm_limits: StoreLimits,
+    /// Fuel reset before each guest entry when [`wasmtime::Config::consume_fuel`] is enabled.
+    pub(crate) fuel_per_invocation: u64,
 }
 
 impl WasmHostContext {
     pub fn new(storage: Arc<dyn WasmStorage>, config: HashMap<String, String>) -> Self {
+        let wasm_limits = crate::module::wasm::limits::store_limits(&config);
+        let fuel_per_invocation = crate::module::wasm::limits::fuel_per_invocation(&config);
         Self {
             storage,
             config,
@@ -45,6 +51,8 @@ impl WasmHostContext {
             next_tree_id: RefCell::new(1),
             iters: RefCell::new(HashMap::new()),
             next_iter_id: RefCell::new(1),
+            wasm_limits,
+            fuel_per_invocation,
         }
     }
 

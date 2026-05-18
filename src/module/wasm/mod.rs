@@ -5,6 +5,7 @@
 
 mod host;
 mod instance;
+mod limits;
 #[cfg(all(feature = "node", feature = "wasm-modules"))]
 mod loader;
 

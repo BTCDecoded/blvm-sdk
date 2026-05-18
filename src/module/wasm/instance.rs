@@ -9,6 +9,7 @@ use blvm_node::module::ipc::protocol::{CliSpec, InvocationResultPayload};
 use blvm_node::module::traits::ModuleError;
 
 use super::host::{create_host_imports, WasmHostContext, WasmStorage};
+use super::limits;
 
 /// Fixed offsets in linear memory for host→module string passing.
 /// Uses first page; modules typically leave high addresses free.
@@ -21,6 +22,10 @@ pub struct WasmModuleInstance {
     _engine: Engine,
     store: Mutex<Store<WasmHostContext>>,
     instance: Instance,
+}
+
+fn reset_guest_fuel(store: &mut Store<WasmHostContext>) -> wasmtime::Result<()> {
+    store.set_fuel(store.data().fuel_per_invocation)
 }
 
 impl WasmModuleInstance {
@@ -39,9 +44,10 @@ impl WasmModuleInstance {
         storage: Arc<dyn WasmStorage>,
         config: HashMap<String, String>,
     ) -> Result<Self, wasmtime::Error> {
-        let engine = Engine::default();
+        let engine = limits::wasm_engine_with_fuel()?;
         let host_ctx = WasmHostContext::new(storage, config);
         let mut store = Store::new(&engine, host_ctx);
+        store.limiter(|host| &mut host.wasm_limits);
         let linker =
             create_host_imports(&engine).map_err(|e| wasmtime::Error::msg(e.to_string()))?;
         let module = Module::new(&engine, wasm_bytes)?;
@@ -68,6 +74,7 @@ impl WasmModuleInstance {
             .get_func(&mut *store, name)
             .ok_or_else(|| wasmtime::Error::msg(format!("Export '{name}' not found")))?;
 
+        reset_guest_fuel(&mut store)?;
         let mut results = [wasmtime::Val::I32(0), wasmtime::Val::I32(0)];
         func.call(&mut *store, &[], &mut results)?;
 
@@ -138,6 +145,7 @@ impl WasmModuleInstance {
         memory.write(&mut *store, BUF_A_OFFSET, &arg1_bytes[..arg1_len])?;
         memory.write(&mut *store, BUF_B_OFFSET, &arg2[..arg2_len])?;
 
+        reset_guest_fuel(&mut store)?;
         let mut results = [wasmtime::Val::I32(0), wasmtime::Val::I32(0)];
         func.call(
             &mut *store,

@@ -299,7 +299,7 @@ pub fn generate_mnemonic(strength: EntropyStrength) -> GovernanceResult<Vec<Stri
 pub fn mnemonic_from_entropy(entropy: &[u8]) -> GovernanceResult<Vec<String>> {
     // Validate entropy length
     let entropy_bits = entropy.len() * 8;
-    if !entropy_bits.is_multiple_of(32) || !(128..=256).contains(&entropy_bits) {
+    if entropy_bits % 32 != 0 || !(128..=256).contains(&entropy_bits) {
         return Err(GovernanceError::InvalidInput(format!(
             "Entropy must be 128-256 bits and multiple of 32, got {entropy_bits} bits"
         )));
@@ -358,7 +358,7 @@ pub fn mnemonic_from_entropy(entropy: &[u8]) -> GovernanceResult<Vec<String>> {
 pub fn mnemonic_to_entropy(mnemonic: &[String]) -> GovernanceResult<Vec<u8>> {
     // Validate word count
     let word_count = mnemonic.len();
-    if !(12..=24).contains(&word_count) || !word_count.is_multiple_of(3) {
+    if !(12..=24).contains(&word_count) || word_count % 3 != 0 {
         return Err(GovernanceError::InvalidInput(format!(
             "Mnemonic must be 12, 15, 18, 21, or 24 words, got {word_count}"
         )));

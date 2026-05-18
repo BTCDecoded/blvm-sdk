@@ -2,9 +2,10 @@
 //!
 //! Each module has its own database at `{data_dir}/db/`. Use this helper to open it.
 //!
-//! `MODULE_CONFIG_DATABASE_BACKEND` is normally set by the node when spawning a module, from
-//! `[storage] database_backend` and optional `[modules] module_database_backend` (see
-//! `blvm_node::storage::database::module_subprocess_database_backend_preference`). That value
+//! `MODULE_CONFIG_DATABASE_BACKEND` is normally set by the node when spawning a module from
+//! [`module_subprocess_database_backend_preference`](blvm_node::storage::database::module_subprocess_database_backend_preference):
+//! **sled** when the chain uses RocksDB or Redb, **tidesdb** when the chain uses TidesDB, unless
+//! `[modules] module_database_backend` overrides. That value
 //! matches the chain store name; if it is not suitable for dynamic module trees (RocksDB / Redb),
 //! this crate falls back by trying **Sled** then **TidesDB** via
 //! [`create_database`](blvm_node::storage::database::create_database) (same order as

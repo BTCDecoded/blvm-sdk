@@ -16,6 +16,12 @@ use tracing::info;
 
 use crate::module::storage::{DatabaseStorageAdapter, ModuleStorage, ModuleStorageDatabaseBridge};
 
+/// Core RPC allowlist: registered with [`NodeAPI::register_core_rpc_override`] in module setup,
+/// not via [`NodeAPI::register_rpc_endpoint`] (the RPC server rejects extension registration for them).
+fn is_overrideable_core_rpc_method(method: &str) -> bool {
+    blvm_node::rpc::methods::OVERRIDABLE_CORE_RPC_METHODS.contains(&method)
+}
+
 /// Run an async future from a sync context (e.g. CLI handler).
 /// Blocks the current thread and executes the future on the current runtime.
 /// Use when `#[command]` methods need to call async APIs.
@@ -112,6 +118,9 @@ where
 
             let node_api = integration.node_api();
             for method in rpc_methods {
+                if is_overrideable_core_rpc_method(method) {
+                    continue;
+                }
                 node_api
                     .register_rpc_endpoint((*method).to_string(), String::new())
                     .await?;
@@ -202,6 +211,9 @@ where
 
             let node_api = integration.node_api();
             for method in rpc_methods {
+                if is_overrideable_core_rpc_method(method) {
+                    continue;
+                }
                 node_api
                     .register_rpc_endpoint((*method).to_string(), String::new())
                     .await?;
@@ -296,6 +308,9 @@ where
 
             let node_api = integration.node_api();
             for method in rpc_methods {
+                if is_overrideable_core_rpc_method(method) {
+                    continue;
+                }
                 node_api
                     .register_rpc_endpoint((*method).to_string(), String::new())
                     .await?;
