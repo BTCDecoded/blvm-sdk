@@ -1,7 +1,7 @@
 name: CI
 
 
-# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security], [skip_verify], [skip_release]
+# Commit message skip tokens (push only): [skip_tests], [skip_docs], [skip_fuzz], [skip_security], [skip_verify], [skip_release], [skip_publish_dev]
 # [skip_docs] also skips clippy and fmt.
 # [skip_verify] skips the release-profile build job (`cargo build --release`).
 # Tokens are matched against setup.commit_msg_bundle (git log range) plus head_commit when set.
@@ -10,11 +10,11 @@ on:
   push:
     branches: [ main, develop ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
   release:
     types: [published]
   repository_dispatch:
-    types: [build-chain, upstream-changed]
+    types: [build-chain, upstream-changed, develop-chain]
   workflow_dispatch:
     inputs:
       skip_tests:
@@ -987,6 +987,94 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-dev:
+    name: Publish develop (crates.io)
+    needs: [setup, build-dev, build, test, clippy, fmt, docs, security, fuzz]
+    runs-on: [self-hosted, Linux, X64, builds]
+    if: |
+      always() &&
+      needs.setup.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+        (github.event_name == 'repository_dispatch' && github.event.action == 'develop-chain')
+      ) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[skip_release]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[skip_release]')) &&
+      !contains(needs.setup.outputs.commit_msg_bundle, '[skip_publish_dev]') &&
+      (github.event.head_commit == null || !contains(github.event.head_commit.message, '[skip_publish_dev]')) &&
+      ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true') ||
+       (
+         (needs.test.result == 'success' || (needs.test.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && contains(github.event.head_commit.message, '[skip_tests]'))))) &&
+         (needs.clippy.result == 'success' || (needs.clippy.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.fmt.result == 'success' || (needs.fmt.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.docs.result == 'success' || (needs.docs.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_docs]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_docs]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.security.result == 'success' || (needs.security.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_security]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_security]') || contains(github.event.head_commit.message, '[skip_tests]')))))) &&
+         (needs.fuzz.result == 'success' || (needs.fuzz.result == 'skipped' && (contains(needs.setup.outputs.commit_msg_bundle, '[skip_fuzz]') || contains(needs.setup.outputs.commit_msg_bundle, '[skip_tests]') || (github.event.head_commit != null && (contains(github.event.head_commit.message, '[skip_fuzz]') || contains(github.event.head_commit.message, '[skip_tests]'))))))
+       ))
+    outputs:
+      version: ${{ steps.dev_publish.outputs.version }}
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Strip [patch.crates-io] for crates.io-only CI
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Install Rust
+        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+
+      - name: Checkout develop scripts (blvm)
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm
+          ref: ${{ github.ref_name == 'develop' && 'develop' || 'main' }}
+          path: _develop-blvm
+          fetch-depth: 1
+
+      - name: Check for crates.io token
+        id: token
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            cargo login "${CARGO_REGISTRY_TOKEN}"
+          fi
+
+      - name: Publish develop pre-release
+        id: dev_publish
+        if: steps.token.outputs.skip != 'true'
+        run: |
+          chmod +x _develop-blvm/scripts/*.sh
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            V="${{ github.event.client_payload.version }}"
+          else
+            V=$(bash _develop-blvm/scripts/compute-develop-version.sh)
+          fi
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          bash _develop-blvm/scripts/ci-publish-develop-sdk.sh \
+            --scripts-dir "${GITHUB_WORKSPACE}/_develop-blvm/scripts" \
+            --wait-for blvm-node \
+            "${V}"
+
+      - name: Dispatch develop-chain to blvm
+        if: steps.token.outputs.skip != 'true' && steps.dev_publish.outputs.version != ''
+        env:
+          REPO_ACCESS_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}
+          VERSION: ${{ steps.dev_publish.outputs.version }}
+        run: |
+          if [ -z "${REPO_ACCESS_TOKEN:-}" ]; then exit 0; fi
+          curl -sfSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${REPO_ACCESS_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/BTCDecoded/blvm/dispatches" \
+            -d "{\"event_type\":\"develop-chain\",\"client_payload\":{\"version\":\"${VERSION}\",\"source\":\"blvm-sdk\"}}" \
+            || echo "::warning::develop-chain dispatch to blvm failed"
 
   teardown:
     name: Teardown (cleanup runner disk)
