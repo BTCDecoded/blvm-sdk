@@ -30,9 +30,9 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: '1'
-  CARGO_INCREMENTAL: '0'
-  # Shared target dir for build-dev → test / clippy / docs (same workflow run, same runner host).
-  BLVM_BUILD_TARGET: /tmp/gh-blvm-sdk-build/${{ github.run_id }}/target
+  CARGO_INCREMENTAL: '1'
+  # Linker flags set per-run in setup (mold / working lld / default bfd). Do not hardcode -fuse-ld=lld:
+  # stale lld packages (e.g. libLLVM.so.19.1) break cargo install and all builds on upgraded runners.
 
 jobs:
   setup:
@@ -46,6 +46,7 @@ jobs:
         !contains(github.event.head_commit.message, '[no ci]')))
     outputs:
       cache-key: ${{ steps.setup-cache.outputs.cache-key }}
+      rustflags: ${{ steps.linker.outputs.rustflags }}
       # All pushed commit bodies (push only). head_commit.message is often null on multi-commit pushes — use this for skip tokens + release gates.
       commit_msg_bundle: ${{ steps.commit-msg-bundle.outputs.bundle }}
     steps:
@@ -129,98 +130,31 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
 
-  build-dev:
-    name: Build (dev, shared)
-    needs: setup
-    runs-on: [self-hosted, Linux, X64, builds]
-
-    if: |
-      (github.event_name != 'push' || github.event.head_commit == null ||
-       (!contains(github.event.head_commit.message, '[skip ci]') &&
-        !contains(github.event.head_commit.message, '[ci skip]') &&
-        !contains(github.event.head_commit.message, '[no ci]'))) &&
-      (github.event_name != 'push' || github.event.head_commit == null ||
-       !contains(github.event.head_commit.message, '[skip_tests]')) &&
-      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true')
-    steps:
-      - name: Show disk usage
+      - name: Configure linker (mold / lld / default)
+        id: linker
         run: |
-          df -h /
-          du -sh /tmp/gh-blvm-sdk-build 2>/dev/null || true
-
-      - uses: actions/checkout@v6
-
-      - name: Strip [patch.crates-io] for crates.io-only CI
-        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
-
-      - name: Clean leftover path overrides
-        run: |
-          if [ -d "../blvm-protocol" ]; then rm -rf ../blvm-protocol; fi
-          if [ -d "../blvm-consensus" ]; then rm -rf ../blvm-consensus; fi
-          if [ -d "../blvm-primitives" ]; then rm -rf ../blvm-primitives; fi
-          if [ -d "../blvm-spec-lock" ]; then rm -rf ../blvm-spec-lock; fi
-          if [ -d "../blvm-muhash" ]; then rm -rf ../blvm-muhash; fi
-          if [ -d "../blvm-node" ]; then rm -rf ../blvm-node; fi
-          if [ -f ".cargo/config.toml" ]; then rm -f .cargo/config.toml; fi
-
-      - name: Install OpenSSL development headers
-        run: |
-          if command -v apt-get >/dev/null 2>&1; then
-            bash scripts/apt-get-retry.sh update -qq
-            bash scripts/apt-get-retry.sh install -y -qq pkg-config libssl-dev
-          elif command -v pacman >/dev/null 2>&1; then
-            pkg-config --libs openssl >/dev/null 2>&1 && pacman -Qq pkgconf >/dev/null 2>&1 || sudo pacman -Sy --noconfirm openssl pkgconf
+          set -euo pipefail
+          RF=""
+          if command -v mold >/dev/null 2>&1 && mold --version >/dev/null 2>&1; then
+            RF="-C link-arg=-fuse-ld=mold"
+            echo "✅ Using mold linker"
+          elif command -v ld.lld >/dev/null 2>&1 && ld.lld --version >/dev/null 2>&1; then
+            RF="-C link-arg=-fuse-ld=lld"
+            echo "✅ Using lld linker"
+          else
+            echo "⚠️ mold/lld unavailable or broken (e.g. libLLVM.so mismatch); using default bfd linker"
+            if command -v pacman >/dev/null 2>&1; then
+              echo "Hint: on Arch runners: sudo pacman -S --needed lld llvm-libs"
+            fi
           fi
-
-      - name: Isolate CARGO_HOME for this runner
-        run: |
-          mkdir -p "${RUNNER_TEMP}/cargo"
-          echo "CARGO_HOME=${RUNNER_TEMP}/cargo" >> "$GITHUB_ENV"
-
-      - name: Cache
-        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
-        with:
-          operation: bind-env
-          cache-key: ${{ needs.setup.outputs.cache-key }}
-
-      - name: Restore Cargo cache
-        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
-        with:
-          operation: restore
-
-      - name: Install Rust
-        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-
-      - name: Compile test binaries once (default features)
-        env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
-        run: |
-          # One compile shared with test/clippy; default features (optional features via clippy step).
-          # Optional features (wasm-modules, registry, git) are checked by a second clippy step (incremental).
-          cargo test --no-run
-
-      - name: Dump disk usage on failure
-        if: failure()
-        run: |
-          df -h /
-          du -sh /tmp/gh-blvm-sdk-build/* 2>/dev/null | sort -rh | head -10
-
-      - name: Save Cargo cache
-        if: always()
-        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
-        with:
-          operation: save
-
-      - name: Prune old runner caches
-        if: always()
-        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
-        with:
-          operation: prune
+          echo "rustflags=$RF" >> "$GITHUB_OUTPUT"
 
   test:
     name: Test
-    needs: [setup, build-dev]
+    needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
+    env:
+      RUSTFLAGS: ${{ needs.setup.outputs.rustflags }}
 
     if: |
       (github.event_name != 'push' || github.event.head_commit == null ||
@@ -235,6 +169,20 @@ jobs:
 
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Checkout develop scripts (blvm)
+        if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+        uses: actions/checkout@v6
+        with:
+          repository: BTCDecoded/blvm
+          ref: ${{ github.ref_name == 'develop' && 'develop' || 'main' }}
+          path: _develop-blvm
+          fetch-depth: 1
+
+      - name: Resolve develop registry deps (test)
+        uses: ./_develop-blvm/.github/actions/develop-resolve-test
+        continue-on-error: true
+        if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
 
       - name: Clean leftover path overrides
         run: |
@@ -274,29 +222,22 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
 
+      - name: Compile tests (no-run)
+        env:
+          CARGO_BUILD_JOBS: '1'
+        run: cargo test --lib --bins --tests --no-run
+
       - name: Run tests
         env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
-        run: |
-          cargo test --lib --bins --tests
+          CARGO_BUILD_JOBS: '1'
+          RUST_BACKTRACE: full
+        run: cargo test --lib --bins --tests -- --test-threads=1 --nocapture
 
       - name: Dump disk usage on failure
         if: failure()
         run: |
           df -h /
           du -sh /tmp/gh-blvm-sdk-build/* 2>/dev/null | sort -rh | head -10
-
-      - name: Clean test executables and stale run dirs
-        if: always()
-        run: |
-          TARGET="${{ env.BLVM_BUILD_TARGET }}"
-          if [ -d "$TARGET/debug" ]; then
-            find "$TARGET/debug" -maxdepth 1 -type f -executable ! -name "*.so" ! -name "*.rlib" ! -name "*.d" \
-              -delete 2>/dev/null || true
-          fi
-          find /tmp/gh-blvm-sdk-build -mindepth 1 -maxdepth 1 -type d \
-            -not -name "${{ github.run_id }}" \
-            -exec rm -rf {} + 2>/dev/null || true
 
       - name: Save Cargo cache
         if: always()
@@ -312,8 +253,10 @@ jobs:
 
   clippy:
     name: Clippy
-    needs: [setup, build-dev]
+    needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
+    env:
+      RUSTFLAGS: ${{ needs.setup.outputs.rustflags }}
 
     if: |
       (github.event_name != 'push' || github.event.head_commit == null ||
@@ -371,8 +314,6 @@ jobs:
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
 
       - name: Clippy (default features)
-        env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: |
           if ! cargo clippy --version >/dev/null 2>&1; then
             echo "Skipping Clippy (cargo-clippy not installed)"
@@ -381,8 +322,6 @@ jobs:
           cargo clippy --lib --bins --tests -- -D clippy::uninlined_format_args -D warnings
 
       - name: Clippy (all optional features, incremental)
-        env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: |
           if ! cargo clippy --version >/dev/null 2>&1; then
             exit 0
@@ -423,8 +362,10 @@ jobs:
 
   docs:
     name: Docs
-    needs: [setup, build-dev]
+    needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
+    env:
+      RUSTFLAGS: ${{ needs.setup.outputs.rustflags }}
 
     if: |
       (github.event_name != 'push' || github.event.head_commit == null ||
@@ -480,19 +421,17 @@ jobs:
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
 
       - name: Build docs (default features — faster)
-        env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: cargo doc --no-deps
 
       - name: Check docs (private items)
-        env:
-          CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
         run: cargo doc --no-deps --document-private-items
 
   security:
     name: Security
     needs: setup
     runs-on: [self-hosted, Linux, X64, builds]
+    env:
+      RUSTFLAGS: ${{ needs.setup.outputs.rustflags }}
 
     if: |
       (github.event_name != 'push' || github.event.head_commit == null ||
@@ -607,7 +546,6 @@ jobs:
     name: Build
     needs:
       - setup
-      - build-dev
       - test
       - clippy
       - fmt
@@ -615,11 +553,12 @@ jobs:
       - security
       - fuzz
     runs-on: [self-hosted, Linux, X64, builds]
+    env:
+      RUSTFLAGS: ${{ needs.setup.outputs.rustflags }}
 
     if: |
       always() &&
       needs.setup.result == 'success' &&
-      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'release' || github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch') &&
       (github.event_name != 'push' || github.event.head_commit == null ||
        (!contains(github.event.head_commit.message, '[skip ci]') &&
@@ -684,14 +623,13 @@ jobs:
 
   release:
     name: Release
-    needs: [setup, build-dev, build, test, clippy, fmt, docs, security, fuzz]
+    needs: [setup, build, test, clippy, fmt, docs, security, fuzz]
     runs-on: [self-hosted, Linux, X64, builds]
 
     if: |
       always() &&
       needs.setup.result == 'success' &&
       needs.build.result == 'success' &&
-      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
       !contains(needs.setup.outputs.commit_msg_bundle, '[skip ci]') &&
@@ -1000,14 +938,13 @@ jobs:
 
   publish-dev:
     name: Publish develop (crates.io)
-    needs: [setup, build-dev, build, test, clippy, fmt, docs, security, fuzz]
+    needs: [setup, build, test, clippy, fmt, docs, security, fuzz]
     runs-on: [self-hosted, Linux, X64, builds]
 
     if: |
       always() &&
       needs.setup.result == 'success' &&
       needs.build.result == 'success' &&
-      (needs.build-dev.result == 'success' || needs.build-dev.result == 'skipped') &&
       (
         (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
         (github.event_name == 'repository_dispatch' && github.event.action == 'develop-chain')
@@ -1094,7 +1031,6 @@ jobs:
     if: always()
     needs:
       - setup
-      - build-dev
       - test
       - clippy
       - fmt

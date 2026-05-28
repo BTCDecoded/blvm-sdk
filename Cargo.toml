@@ -12,6 +12,9 @@ documentation = "https://docs.rs/blvm-sdk"
 keywords = ["bitcoin", "governance", "cryptography", "consensus"]
 categories = ["cryptography", "development-tools"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("node", "wasm-modules", "registry", "git"))'] }
+
 [dependencies]
 # Governance cryptography (Bitcoin-compatible)
 blvm-secp256k1 = { version = ">=0.1, <1" }  # Pure-Rust crypto (replaces crates.io secp256k1)
