@@ -764,7 +764,7 @@ jobs:
           ' Cargo.toml > Cargo.toml.dep.$$ && mv Cargo.toml.dep.$$ Cargo.toml
           awk -v nv="$NODE_VER" '
             /^blvm-node = .*optional = true/ {
-              print "blvm-node = { version = \"" nv "\", optional = true }"
+              print "blvm-node = { version = \"" nv "\", optional = true, default-features = false }"
               next
             }
             { print }
