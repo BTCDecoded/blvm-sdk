@@ -286,9 +286,16 @@ where
     FE: Fn(blvm_node::module::ipc::protocol::EventMessage, &M, &InvocationContext) -> Fut,
     Fut: std::future::Future<Output = Result<(), ModuleError>> + Send,
     FSetup: Fn(Arc<dyn NodeAPI>, Arc<dyn Database>, &Path) -> FutSetup,
-    FutSetup:
-        std::future::Future<Output = Result<(M, C, Arc<dyn blvm_node::module::inter_module::api::ModuleAPI>), ModuleError>>
-        + Send,
+    FutSetup: std::future::Future<
+            Output = Result<
+                (
+                    M,
+                    C,
+                    Arc<dyn blvm_node::module::inter_module::api::ModuleAPI>,
+                ),
+                ModuleError,
+            >,
+        > + Send,
 {
     use blvm_node::module::ipc::protocol::{InvocationResultPayload, InvocationType};
 
