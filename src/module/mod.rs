@@ -537,7 +537,8 @@ pub use manifest::ModuleManifest;
 pub use module_db::ModuleDb;
 #[cfg(feature = "node")]
 pub use runner::{
-    run_async, run_module, run_module_with_setup, run_module_with_tick, InvocationContext,
+    run_async, run_module, run_module_with_setup, run_module_with_setup_and_api,
+    run_module_with_tick, InvocationContext,
 };
 #[cfg(feature = "node")]
 pub use security::{Permission, PermissionSet};

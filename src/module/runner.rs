@@ -265,6 +265,133 @@ where
     Ok(())
 }
 
+/// Like [`run_module_with_setup`], but setup also returns a [`ModuleAPI`] for IPC forwarding.
+#[allow(clippy::too_many_arguments)]
+pub async fn run_module_with_setup_and_api<M, C, F, FE, Fut, FSetup, FutSetup>(
+    socket_path: impl AsRef<Path>,
+    module_id: &str,
+    module_name: &str,
+    version: &str,
+    cli_spec: CliSpec,
+    rpc_methods: &[&str],
+    event_types: Vec<blvm_node::module::traits::EventType>,
+    dispatch: F,
+    on_event: FE,
+    setup: FSetup,
+    db: Arc<dyn Database>,
+    data_dir: &Path,
+) -> Result<(), ModuleError>
+where
+    F: Fn(InvocationMessage, InvocationContext, &M, &C) -> InvocationResultMessage,
+    FE: Fn(blvm_node::module::ipc::protocol::EventMessage, &M, &InvocationContext) -> Fut,
+    Fut: std::future::Future<Output = Result<(), ModuleError>> + Send,
+    FSetup: Fn(Arc<dyn NodeAPI>, Arc<dyn Database>, &Path) -> FutSetup,
+    FutSetup:
+        std::future::Future<Output = Result<(M, C, Arc<dyn blvm_node::module::inter_module::api::ModuleAPI>), ModuleError>>
+        + Send,
+{
+    use blvm_node::module::ipc::protocol::{InvocationResultPayload, InvocationType};
+
+    let socket_path = socket_path.as_ref().to_path_buf();
+
+    match ModuleIntegration::connect(
+        socket_path.clone(),
+        module_id.to_string(),
+        module_name.to_string(),
+        version.to_string(),
+        Some(cli_spec),
+    )
+    .await
+    {
+        Ok(mut integration) => {
+            info!("Connected to node");
+
+            let node_api = integration.node_api();
+            for method in rpc_methods {
+                if is_overrideable_core_rpc_method(method) {
+                    continue;
+                }
+                node_api
+                    .register_rpc_endpoint((*method).to_string(), String::new())
+                    .await?;
+            }
+
+            integration.subscribe_events(event_types).await?;
+
+            let (module, cli, module_api) =
+                setup(node_api.clone(), Arc::clone(&db), data_dir).await?;
+            let module = Arc::new(module);
+            let module_api = Arc::clone(&module_api);
+
+            if let Err(e) = node_api.register_module_api(module_api.clone()).await {
+                return Err(ModuleError::Other(format!(
+                    "Failed to register module API descriptor: {e}"
+                )));
+            }
+            info!("Module API descriptor registered with node");
+
+            let mut event_rx = integration.event_receiver();
+            let invocation_rx = integration.invocation_receiver().ok_or_else(|| {
+                ModuleError::IpcError(
+                    "Invocation receiver not available for this module integration".to_string(),
+                )
+            })?;
+            let ctx = InvocationContext::with_node_api(Arc::clone(&db), node_api);
+
+            loop {
+                tokio::select! {
+                    msg = event_rx.recv() => {
+                        if let Ok(ModuleMessage::Event(e)) = msg {
+                            let _ = on_event(e, &*module, &ctx).await;
+                        }
+                    }
+                    inv = invocation_rx.recv() => {
+                        if let Some((invocation, result_tx)) = inv {
+                            let result = match &invocation.invocation_type {
+                                InvocationType::ModuleApi { method, params, caller_module_id } => {
+                                    match module_api
+                                        .handle_request(method, params, caller_module_id)
+                                        .await
+                                    {
+                                        Ok(data) => InvocationResultMessage {
+                                            correlation_id: invocation.correlation_id,
+                                            success: true,
+                                            payload: Some(InvocationResultPayload::ModuleApi(data)),
+                                            error: None,
+                                        },
+                                        Err(e) => InvocationResultMessage {
+                                            correlation_id: invocation.correlation_id,
+                                            success: false,
+                                            payload: None,
+                                            error: Some(e.to_string()),
+                                        },
+                                    }
+                                }
+                                _ => dispatch(invocation, ctx.clone(), &*module, &cli),
+                            };
+                            let _ = result_tx.send(result);
+                        } else {
+                            info!("Invocation channel closed, module unloading");
+                            break;
+                        }
+                    }
+                    _ = sleep(Duration::from_secs(30)) => {
+                        info!("Module running");
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            info!("Node not running, standalone mode: {}", e);
+            loop {
+                sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Run a module with optional on_connect (setup) and on_tick (periodic) callbacks.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_module_with_tick<M, C, F, FE, Fut, FConnect, FutConnect, FTick, FutTick>(

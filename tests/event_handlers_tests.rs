@@ -123,6 +123,7 @@ async fn test_dispatch_unknown_event_no_op() {
             transport_type: "tcp".to_string(),
             services: 0,
             version: 70015,
+            peer_node_id: None,
         },
     };
 
