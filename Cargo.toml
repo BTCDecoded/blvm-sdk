@@ -1,6 +1,6 @@
 [package]
 name = "blvm-sdk"
-version = "0.1.0"
+version = "0.1.13"
 edition = "2021"
 rust-version = "1.82"
 authors = ["Bitcoin Commons Contributors"]

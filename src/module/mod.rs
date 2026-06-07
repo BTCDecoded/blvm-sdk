@@ -263,6 +263,11 @@ macro_rules! run_module {
                         Err(e) => (false, None, Some(e.to_string())),
                     }
                 }
+                InvocationType::ModuleApi { .. } => (
+                    false,
+                    None,
+                    Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
+                ),
             };
             InvocationResultMessage {
                 correlation_id: invocation.correlation_id,
@@ -339,6 +344,11 @@ macro_rules! run_module {
                         Err(e) => (false, None, Some(e.to_string())),
                     }
                 }
+                InvocationType::ModuleApi { .. } => (
+                    false,
+                    None,
+                    Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
+                ),
             };
             InvocationResultMessage {
                 correlation_id: invocation.correlation_id,
@@ -446,6 +456,11 @@ macro_rules! run_module {
                         Err(e) => (false, None, Some(e.to_string())),
                     }
                 }
+                InvocationType::ModuleApi { .. } => (
+                    false,
+                    None,
+                    Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
+                ),
             };
             InvocationResultMessage {
                 correlation_id: invocation.correlation_id,
