@@ -506,14 +506,16 @@ fn test_node_composer_creation() {
 
     // Composer should be created
     // Note: We can't easily test composition without actual modules
-    assert!(composer
-        .validate_composition(&NodeSpec {
-            name: "test".to_string(),
-            version: None,
-            network: NetworkType::Mainnet,
-            modules: vec![],
-        })
-        .is_ok());
+    assert!(
+        composer
+            .validate_composition(&NodeSpec {
+                name: "test".to_string(),
+                version: None,
+                network: NetworkType::Mainnet,
+                modules: vec![],
+            })
+            .is_ok()
+    );
 }
 
 #[test]

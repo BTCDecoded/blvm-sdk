@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use blvm_node::module::wasm::WasmModuleLoader;
-use blvm_node::storage::database::{create_database, Database, DatabaseBackend, Tree};
+use blvm_node::storage::database::{Database, DatabaseBackend, Tree, create_database};
 
 use super::host::{WasmStorage, WasmTree};
 use super::instance::WasmModuleInstance;

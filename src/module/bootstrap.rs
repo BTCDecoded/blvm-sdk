@@ -86,7 +86,9 @@ impl ModuleBootstrap {
     pub fn init_module(module_name: &str) -> Self {
         blvm_node::utils::init_module_logging(module_name.replace('-', "_").as_str(), None);
         let bootstrap = Self::for_module(module_name);
-        std::env::set_var("DATA_DIR", bootstrap.data_dir.to_string_lossy().as_ref());
+        unsafe {
+            std::env::set_var("DATA_DIR", bootstrap.data_dir.to_string_lossy().as_ref());
+        }
         tracing::info!(
             "{} starting... (module_id: {}, socket: {:?})",
             module_name,

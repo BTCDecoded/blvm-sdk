@@ -7,8 +7,8 @@
 
 use blvm_sdk::governance::bip32::{derive_child_private, derive_child_public, derive_master_key};
 use blvm_sdk::governance::bip39::{
-    generate_mnemonic, mnemonic_from_entropy, mnemonic_to_entropy, mnemonic_to_seed,
-    validate_mnemonic, EntropyStrength,
+    EntropyStrength, generate_mnemonic, mnemonic_from_entropy, mnemonic_to_entropy,
+    mnemonic_to_seed, validate_mnemonic,
 };
 use blvm_sdk::governance::bip44::{Bip44Path, Bip44Wallet, ChangeChain, CoinType};
 

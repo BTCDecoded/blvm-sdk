@@ -82,7 +82,6 @@ pub use composition::{
 // Re-export module development APIs (requires node)
 #[cfg(feature = "node")]
 pub use module::{
-    open_module_db,
     CorrelationId,
     EventMessage,
     EventPayload,
@@ -108,6 +107,7 @@ pub use module::{
     RequestPayload,
     ResponseMessage,
     ResponsePayload,
+    open_module_db,
 };
 
 /// WASM module runtime (when `wasm-modules` feature is enabled).

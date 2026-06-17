@@ -3,7 +3,7 @@
 //! Example of signing governance messages.
 
 use blvm_sdk::governance::verify_signature;
-use blvm_sdk::{sign_message, GovernanceKeypair, GovernanceMessage};
+use blvm_sdk::{GovernanceKeypair, GovernanceMessage, sign_message};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Governance Signing Example ===\n");

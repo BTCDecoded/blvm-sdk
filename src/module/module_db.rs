@@ -22,7 +22,7 @@ use blvm_node::storage::database::{Database, Tree};
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::module::database::{open_module_db, run_migrations, MigrationUp};
+use crate::module::database::{MigrationUp, open_module_db, run_migrations};
 
 /// Standard module database.
 ///

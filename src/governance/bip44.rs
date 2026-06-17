@@ -7,7 +7,7 @@
 //!
 //! Example: m/44'/0'/0'/0/0 (Bitcoin mainnet first address)
 
-use crate::governance::bip32::{derive_master_key, ExtendedPrivateKey, ExtendedPublicKey};
+use crate::governance::bip32::{ExtendedPrivateKey, ExtendedPublicKey, derive_master_key};
 use crate::governance::error::{GovernanceError, GovernanceResult};
 use std::fmt;
 
@@ -149,7 +149,7 @@ impl Bip44Path {
             _ => {
                 return Err(GovernanceError::InvalidInput(
                     "Change must be 0 (external) or 1 (internal)".to_string(),
-                ))
+                ));
             }
         };
 

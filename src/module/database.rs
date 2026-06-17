@@ -12,7 +12,10 @@
 //! `try_create_module_kv_database` in newer `blvm-node`).
 
 use anyhow::Result;
-use blvm_node::storage::database::{create_database, default_backend, Database, DatabaseBackend};
+use blvm_node::storage::database::{
+    Database, DatabaseBackend, create_database, default_backend,
+    try_create_module_kv_database_with_preference,
+};
 use std::path::Path;
 use std::sync::Arc;
 use tracing::warn;
@@ -23,6 +26,7 @@ fn parse_backend(s: &str) -> DatabaseBackend {
         "rocksdb" => DatabaseBackend::RocksDB,
         "sled" => DatabaseBackend::Sled,
         "tidesdb" => DatabaseBackend::TidesDB,
+        "heed3" => DatabaseBackend::Heed3,
         // "auto" and anything unrecognised: let the caller fall through to the default selection
         _ => default_backend(),
     }
@@ -32,11 +36,15 @@ fn parse_backend(s: &str) -> DatabaseBackend {
 ///
 /// - **Sled**: any tree name is created on demand.
 /// - **TidesDB**: uses `get_or_create_cf`, fully dynamic.
+/// - **heed3 (module env)**: separate LMDB environment with on-demand named sub-DBs.
 /// - **Redb**: only works for a hard-coded set of node/module tables (`schema`, `items`, etc.).
-///   Arbitrary tree names return an error — use Sled or TidesDB for general module storage.
+///   Arbitrary tree names return an error — use Sled, TidesDB, or heed3 module env.
 /// - **RocksDB**: column families must be declared at database open time.
 fn supports_dynamic_trees(backend: DatabaseBackend) -> bool {
-    matches!(backend, DatabaseBackend::Sled | DatabaseBackend::TidesDB)
+    matches!(
+        backend,
+        DatabaseBackend::Sled | DatabaseBackend::TidesDB | DatabaseBackend::Heed3
+    )
 }
 
 /// Best available backend for module databases (prefers fully-dynamic backends).
@@ -106,7 +114,10 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
         .unwrap_or_else(best_module_backend);
 
     if supports_dynamic_trees(backend) {
-        // Explicitly requested or auto-selected a good module backend.
+        if backend == DatabaseBackend::Heed3 {
+            return try_create_module_kv_database_with_preference(&db_path, Some(backend))
+                .map(Arc::from);
+        }
         return create_database(&db_path, backend, None).map(Arc::from);
     }
 
@@ -116,8 +127,8 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
         // existing module processes don't hard-fail on start-up.
         warn!(
             "MODULE_DATABASE_BACKEND={:?} does not support dynamic open_tree(). \
-             Module databases require Sled or TidesDB. \
-             Set MODULE_CONFIG_DATABASE_BACKEND=sled (or tidesdb) to remove this warning. \
+             Module databases require Sled, TidesDB, or heed3 (module env). \
+             Set MODULE_CONFIG_DATABASE_BACKEND=sled (or tidesdb/heed3) to remove this warning. \
              Note: Redb only supports pre-declared tables (schema, items); \
              RocksDB requires all column families at open time.",
             backend
@@ -126,7 +137,7 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
         // Auto-detected a static backend (e.g. rocksdb is the node default).
         warn!(
             "Default backend {:?} does not support dynamic open_tree(); \
-             auto-selecting best available module backend (sled or tidesdb). \
+             auto-selecting best available module backend (sled, tidesdb, or heed3). \
              Set MODULE_CONFIG_DATABASE_BACKEND=sled to suppress this warning.",
             backend
         );

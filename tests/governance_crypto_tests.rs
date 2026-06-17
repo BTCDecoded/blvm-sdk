@@ -68,12 +68,14 @@ fn test_different_message_types() {
         commit_hash: "abc123".to_string(),
     };
     let release_sig = sign_message(&keypair.secret_key, &release_msg.to_signing_bytes()).unwrap();
-    assert!(blvm_sdk::governance::verify_signature(
-        &release_sig,
-        &release_msg.to_signing_bytes(),
-        &keypair.public_key(),
-    )
-    .unwrap());
+    assert!(
+        blvm_sdk::governance::verify_signature(
+            &release_sig,
+            &release_msg.to_signing_bytes(),
+            &keypair.public_key(),
+        )
+        .unwrap()
+    );
 
     // Test module approval message
     let module_msg = GovernanceMessage::ModuleApproval {
@@ -81,12 +83,14 @@ fn test_different_message_types() {
         version: "v2.0.0".to_string(),
     };
     let module_sig = sign_message(&keypair.secret_key, &module_msg.to_signing_bytes()).unwrap();
-    assert!(blvm_sdk::governance::verify_signature(
-        &module_sig,
-        &module_msg.to_signing_bytes(),
-        &keypair.public_key(),
-    )
-    .unwrap());
+    assert!(
+        blvm_sdk::governance::verify_signature(
+            &module_sig,
+            &module_msg.to_signing_bytes(),
+            &keypair.public_key(),
+        )
+        .unwrap()
+    );
 
     // Test budget decision message
     let budget_msg = GovernanceMessage::BudgetDecision {
@@ -94,12 +98,14 @@ fn test_different_message_types() {
         purpose: "development".to_string(),
     };
     let budget_sig = sign_message(&keypair.secret_key, &budget_msg.to_signing_bytes()).unwrap();
-    assert!(blvm_sdk::governance::verify_signature(
-        &budget_sig,
-        &budget_msg.to_signing_bytes(),
-        &keypair.public_key(),
-    )
-    .unwrap());
+    assert!(
+        blvm_sdk::governance::verify_signature(
+            &budget_sig,
+            &budget_msg.to_signing_bytes(),
+            &keypair.public_key(),
+        )
+        .unwrap()
+    );
 }
 
 #[test]
@@ -116,20 +122,24 @@ fn test_signature_cross_verification() {
     let signature = sign_message(&keypair1.secret_key, &message.to_signing_bytes()).unwrap();
 
     // Verify with keypair1 (should succeed)
-    assert!(blvm_sdk::governance::verify_signature(
-        &signature,
-        &message.to_signing_bytes(),
-        &keypair1.public_key(),
-    )
-    .unwrap());
+    assert!(
+        blvm_sdk::governance::verify_signature(
+            &signature,
+            &message.to_signing_bytes(),
+            &keypair1.public_key(),
+        )
+        .unwrap()
+    );
 
     // Verify with keypair2 (should fail)
-    assert!(!blvm_sdk::governance::verify_signature(
-        &signature,
-        &message.to_signing_bytes(),
-        &keypair2.public_key(),
-    )
-    .unwrap());
+    assert!(
+        !blvm_sdk::governance::verify_signature(
+            &signature,
+            &message.to_signing_bytes(),
+            &keypair2.public_key(),
+        )
+        .unwrap()
+    );
 }
 
 #[test]

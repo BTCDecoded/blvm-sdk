@@ -91,7 +91,7 @@ impl NodeConfig {
                 return Err(CompositionError::InvalidConfiguration(format!(
                     "Unknown network type: {}",
                     self.node.network
-                )))
+                )));
             }
         };
 

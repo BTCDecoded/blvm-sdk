@@ -91,7 +91,7 @@ fn verify_hash(
         None => {
             return Err(GovernanceError::InvalidKey(
                 "Invalid public key".to_string(),
-            ))
+            ));
         }
     };
     let mut msg = Scalar::zero();

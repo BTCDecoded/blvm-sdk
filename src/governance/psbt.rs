@@ -515,9 +515,10 @@ mod tests {
         let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
         assert_eq!(psbt.version, 0);
-        assert!(psbt
-            .global
-            .contains_key(&vec![PsbtGlobalKey::UnsignedTx as u8]));
+        assert!(
+            psbt.global
+                .contains_key(&vec![PsbtGlobalKey::UnsignedTx as u8])
+        );
     }
 
     #[test]

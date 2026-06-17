@@ -9,7 +9,7 @@ mod limits;
 #[cfg(all(feature = "node", feature = "wasm-modules"))]
 mod loader;
 
-pub use host::{create_host_imports, WasmHostContext, WasmStorage, WasmTree};
+pub use host::{WasmHostContext, WasmStorage, WasmTree, create_host_imports};
 pub use instance::WasmModuleInstance;
 
 #[cfg(all(feature = "node", feature = "wasm-modules"))]

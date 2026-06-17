@@ -4,8 +4,8 @@
 //! Specification: https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki
 
 use blvm_sdk::governance::psbt::{
-    Bip32Derivation, PartialSignature, PartiallySignedTransaction, PsbtGlobalKey, PsbtInputKey,
-    PsbtOutputKey, SighashType, PSBT_MAGIC, PSBT_SEPARATOR,
+    Bip32Derivation, PSBT_MAGIC, PSBT_SEPARATOR, PartialSignature, PartiallySignedTransaction,
+    PsbtGlobalKey, PsbtInputKey, PsbtOutputKey, SighashType,
 };
 
 /// Test helper: Create a minimal unsigned transaction (mock)
@@ -41,9 +41,10 @@ fn test_psbt_creation() {
     assert_eq!(psbt.version, 0);
 
     // Should have unsigned transaction in global map
-    assert!(psbt
-        .global
-        .contains_key(&vec![PsbtGlobalKey::UnsignedTx as u8]));
+    assert!(
+        psbt.global
+            .contains_key(&vec![PsbtGlobalKey::UnsignedTx as u8])
+    );
 }
 
 #[test]
@@ -53,9 +54,10 @@ fn test_psbt_version() {
     let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
     assert_eq!(psbt.version, 0);
-    assert!(psbt
-        .global
-        .contains_key(&vec![PsbtGlobalKey::Version as u8]));
+    assert!(
+        psbt.global
+            .contains_key(&vec![PsbtGlobalKey::Version as u8])
+    );
 }
 
 #[test]

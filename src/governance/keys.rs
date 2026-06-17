@@ -5,8 +5,8 @@ use blvm_secp256k1::ecdsa::{
     ge_from_pubkey_bytes, ge_to_compressed, ge_to_uncompressed, pubkey_from_secret,
 };
 use blvm_secp256k1::scalar::Scalar;
-use rand::rngs::OsRng;
 use rand::RngCore;
+use rand::rngs::OsRng;
 use std::fmt;
 
 /// A governance keypair for signing governance messages.

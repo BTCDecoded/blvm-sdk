@@ -54,11 +54,7 @@ fn scalar_from_b32(b: &[u8; 32]) -> Option<Scalar> {
 fn scalar_add(a: &Scalar, b: &Scalar) -> Option<Scalar> {
     let mut result = Scalar::zero();
     result.add(a, b); // sets result = a + b mod n; returns carry (ignored, mod n is always valid)
-    if result.is_zero() {
-        None
-    } else {
-        Some(result)
-    }
+    if result.is_zero() { None } else { Some(result) }
 }
 
 /// Compute IL_scalar * G + parent_point (BIP32 public child derivation).

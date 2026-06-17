@@ -7,8 +7,8 @@
 //! Run: MODULE_ID=x SOCKET_PATH=/tmp/d.sock DATA_DIR=/tmp/d cargo run --example demo-module
 
 use blvm_node::Hash;
-use blvm_sdk::module::prelude::*;
 use blvm_sdk::module::MigrationContext;
+use blvm_sdk::module::prelude::*;
 use blvm_sdk::run_module_main;
 use serde_json::Value;
 use std::sync::Arc;

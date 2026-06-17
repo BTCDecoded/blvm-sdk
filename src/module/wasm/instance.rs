@@ -8,7 +8,7 @@ use wasmtime::{Engine, Instance, Module, Store};
 use blvm_node::module::ipc::protocol::{CliSpec, InvocationResultPayload};
 use blvm_node::module::traits::ModuleError;
 
-use super::host::{create_host_imports, WasmHostContext, WasmStorage};
+use super::host::{WasmHostContext, WasmStorage, create_host_imports};
 use super::limits;
 
 /// Fixed offsets in linear memory for host→module string passing.

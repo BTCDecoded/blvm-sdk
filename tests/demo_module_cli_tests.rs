@@ -5,7 +5,7 @@
 
 use blvm_sdk::migrations;
 use blvm_sdk::module::prelude::*;
-use blvm_sdk::module::{open_module_db, run_migrations, MigrationContext};
+use blvm_sdk::module::{MigrationContext, open_module_db, run_migrations};
 use tempfile::TempDir;
 
 #[migration(version = 1)]

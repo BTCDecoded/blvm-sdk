@@ -11,7 +11,7 @@ use blvm_node::module::traits::{ModuleError, NodeAPI};
 use blvm_node::storage::database::Database;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 use tracing::info;
 
 use crate::module::storage::{DatabaseStorageAdapter, ModuleStorage, ModuleStorageDatabaseBridge};

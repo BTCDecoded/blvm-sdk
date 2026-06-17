@@ -539,8 +539,8 @@ pub mod traits;
 pub use bootstrap::{ModuleBootstrap, ModuleConfig};
 #[cfg(feature = "node")]
 pub use database::{
-    open_module_db, run_migrations, run_migrations_down, run_migrations_with_down, Migration,
-    MigrationContext, MigrationDown, MigrationUp,
+    Migration, MigrationContext, MigrationDown, MigrationUp, open_module_db, run_migrations,
+    run_migrations_down, run_migrations_with_down,
 };
 #[cfg(feature = "node")]
 pub use ipc::client::ModuleIpcClient;
@@ -552,8 +552,8 @@ pub use manifest::ModuleManifest;
 pub use module_db::ModuleDb;
 #[cfg(feature = "node")]
 pub use runner::{
-    run_async, run_module, run_module_with_setup, run_module_with_setup_and_api,
-    run_module_with_tick, InvocationContext,
+    InvocationContext, run_async, run_module, run_module_with_setup, run_module_with_setup_and_api,
+    run_module_with_tick,
 };
 #[cfg(feature = "node")]
 pub use security::{Permission, PermissionSet};

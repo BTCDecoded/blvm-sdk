@@ -74,7 +74,7 @@ fn test_public_key_from_bytes_edge_cases() {
     // Test with invalid compressed public key (invalid point)
     let mut invalid_point = [0u8; 33];
     invalid_point[0] = 0x02; // Compressed format marker
-                             // All zeros is not a valid point
+    // All zeros is not a valid point
     let result = PublicKey::from_bytes(&invalid_point);
     assert!(result.is_err());
 

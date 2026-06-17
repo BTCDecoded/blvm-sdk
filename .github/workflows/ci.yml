@@ -129,6 +129,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Configure linker (mold / lld / default)
         id: linker
@@ -221,6 +223,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Compile tests (no-run)
         env:
@@ -312,12 +316,14 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Clippy (default features)
         run: |
           if ! cargo clippy --version >/dev/null 2>&1; then
             echo "Skipping Clippy (cargo-clippy not installed)"
-            exit 0
+            exit 1
           fi
           cargo clippy --lib --bins --tests -- -D clippy::uninlined_format_args -D warnings
 
@@ -351,6 +357,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Check formatting
         run: |
@@ -419,6 +427,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Build docs (default features — faster)
         run: cargo doc --no-deps
@@ -451,6 +461,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Install cargo-audit
         run: |
@@ -495,12 +507,17 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Install nightly and cargo-fuzz
         run: |
           rustup toolchain install nightly
           export PATH="$HOME/.cargo/bin:$PATH"
-          cargo install cargo-fuzz
+          # cargo-fuzz 0.13+ MSRV is rustc 1.91; project stable is 1.88. Install the
+          # subcommand with nightly (libFuzzer builds already use +nightly). When the
+          # runner already has cargo-fuzz, `cargo install` skips without --force.
+          command -v cargo-fuzz >/dev/null 2>&1 || cargo +nightly install cargo-fuzz --locked
 
       - name: Initialize corpus dirs
         working-directory: fuzz
@@ -617,6 +634,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Build release (default features — matches crates.io defaults)
         run: cargo build --release
@@ -665,6 +684,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Determine version
         id: version
@@ -974,6 +995,8 @@ jobs:
 
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+        with:
+          toolchain: 1.88.0
 
       - name: Checkout develop scripts (blvm)
         uses: actions/checkout@v6

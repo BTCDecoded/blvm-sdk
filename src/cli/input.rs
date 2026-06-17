@@ -36,7 +36,7 @@ pub fn parse_hex(hex_str: &str) -> Result<Vec<u8>, InputError> {
 
 /// Parse a base64 string
 pub fn parse_base64(base64_str: &str) -> Result<Vec<u8>, InputError> {
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     general_purpose::STANDARD
         .decode(base64_str)
         .map_err(|e| InputError::InvalidFormat(format!("Invalid base64 string: {e}")))
