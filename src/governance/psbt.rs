@@ -142,14 +142,17 @@ pub struct PartiallySignedTransaction {
 impl PartiallySignedTransaction {
     /// Create a new PSBT from an unsigned transaction
     pub fn new(unsigned_tx: &[u8]) -> GovernanceResult<Self> {
+        let input_count = count_tx_inputs(unsigned_tx)?;
+        let output_count = count_tx_outputs(unsigned_tx)?;
+
         let mut global = HashMap::new();
         global.insert(vec![PsbtGlobalKey::UnsignedTx as u8], unsigned_tx.to_vec());
         global.insert(vec![PsbtGlobalKey::Version as u8], vec![0x00]); // Version 0
 
         Ok(PartiallySignedTransaction {
             global,
-            inputs: Vec::new(),
-            outputs: Vec::new(),
+            inputs: vec![HashMap::new(); input_count],
+            outputs: vec![HashMap::new(); output_count],
             version: 0,
         })
     }
@@ -240,6 +243,16 @@ impl PartiallySignedTransaction {
 
     /// Check if PSBT is finalized (all inputs have final script sig/witness)
     pub fn is_finalized(&self) -> bool {
+        let unsigned_tx_key = vec![PsbtGlobalKey::UnsignedTx as u8];
+        let Some(unsigned_tx) = self.global.get(&unsigned_tx_key) else {
+            return false;
+        };
+        let Ok(input_count) = count_tx_inputs(unsigned_tx) else {
+            return false;
+        };
+        if self.inputs.len() != input_count {
+            return false;
+        }
         for input_map in &self.inputs {
             let has_final_sig = input_map.contains_key(&vec![PsbtInputKey::FinalScriptSig as u8]);
             let has_final_witness =
@@ -260,17 +273,12 @@ impl PartiallySignedTransaction {
             ));
         }
 
-        // Get unsigned transaction from global map
         let unsigned_tx_key = vec![PsbtGlobalKey::UnsignedTx as u8];
         let unsigned_tx = self.global.get(&unsigned_tx_key).ok_or_else(|| {
             GovernanceError::InvalidInput("Missing unsigned transaction".to_string())
         })?;
 
-        // Build final transaction by combining unsigned tx with final scripts
-        // This is a simplified version - full implementation would parse transaction
-        // and insert final script sig/witness data
-
-        Ok(unsigned_tx.clone())
+        extract_finalized_transaction(unsigned_tx, &self.inputs)
     }
 
     /// Serialize PSBT to bytes
@@ -324,32 +332,31 @@ impl PartiallySignedTransaction {
         }
         offset += 1;
 
-        // Parse input maps
-        let mut inputs = Vec::new();
-        // Determine number of inputs from unsigned transaction
-        // For now, parse until we hit output separator or end
-        while offset < data.len() && data[offset] != PSBT_SEPARATOR {
+        let unsigned_tx_key = vec![PsbtGlobalKey::UnsignedTx as u8];
+        let unsigned_tx = global.get(&unsigned_tx_key).ok_or_else(|| {
+            GovernanceError::InvalidInput("Missing unsigned transaction in PSBT".to_string())
+        })?;
+        let input_count = count_tx_inputs(unsigned_tx)?;
+        let output_count = count_tx_outputs(unsigned_tx)?;
+
+        let mut inputs = Vec::with_capacity(input_count);
+        for _ in 0..input_count {
             let (input_map, new_offset) = deserialize_map(&data[offset..])?;
             inputs.push(input_map);
             offset += new_offset;
-
-            // Skip separator
-            if offset < data.len() && data[offset] == PSBT_SEPARATOR {
-                offset += 1;
-                break; // Separator indicates start of outputs
+            if offset >= data.len() || data[offset] != PSBT_SEPARATOR {
+                return Err(GovernanceError::InvalidInput(
+                    "Missing separator after PSBT input map".to_string(),
+                ));
             }
+            offset += 1;
         }
 
-        // Parse output maps
-        let mut outputs = Vec::new();
-        while offset < data.len() {
-            if data[offset] == PSBT_SEPARATOR && offset + 1 >= data.len() {
-                break; // Final separator
-            }
+        let mut outputs = Vec::with_capacity(output_count);
+        for _ in 0..output_count {
             let (output_map, new_offset) = deserialize_map(&data[offset..])?;
             outputs.push(output_map);
             offset += new_offset;
-
             if offset < data.len() && data[offset] == PSBT_SEPARATOR {
                 offset += 1;
             }
@@ -505,16 +512,284 @@ fn read_compact_size(data: &[u8]) -> GovernanceResult<(usize, usize)> {
     }
 }
 
+struct ParsedUnsignedTx {
+    version: [u8; 4],
+    inputs: Vec<[u8; 36]>,
+    input_sequences: Vec<[u8; 4]>,
+    outputs: Vec<([u8; 8], Vec<u8>)>,
+    locktime: [u8; 4],
+}
+
+fn count_tx_inputs(unsigned: &[u8]) -> GovernanceResult<usize> {
+    if unsigned.len() < 5 {
+        return Err(GovernanceError::InvalidInput(
+            "Unsigned transaction too short".to_string(),
+        ));
+    }
+    let (count, _) = read_compact_size(&unsigned[4..])?;
+    Ok(count)
+}
+
+fn count_tx_outputs(unsigned: &[u8]) -> GovernanceResult<usize> {
+    if unsigned.len() < 5 {
+        return Err(GovernanceError::InvalidInput(
+            "Unsigned transaction too short".to_string(),
+        ));
+    }
+    let mut offset = 4;
+    let (input_count, len) = read_compact_size(&unsigned[offset..])?;
+    offset += len;
+    for _ in 0..input_count {
+        if offset + 36 > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction input while counting outputs".to_string(),
+            ));
+        }
+        offset += 36;
+        let (script_len, len) = read_compact_size(&unsigned[offset..])?;
+        offset += len;
+        if offset + script_len + 4 > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction input script while counting outputs".to_string(),
+            ));
+        }
+        offset += script_len + 4;
+    }
+    let (output_count, _) = read_compact_size(&unsigned[offset..])?;
+    Ok(output_count)
+}
+
+fn parse_unsigned_tx(unsigned: &[u8]) -> GovernanceResult<ParsedUnsignedTx> {
+    if unsigned.len() < 8 {
+        return Err(GovernanceError::InvalidInput(
+            "Unsigned transaction too short".to_string(),
+        ));
+    }
+    let version: [u8; 4] = unsigned[0..4]
+        .try_into()
+        .map_err(|_| GovernanceError::InvalidInput("Invalid version".to_string()))?;
+    let mut offset = 4;
+    let (input_count, len) = read_compact_size(&unsigned[offset..])?;
+    offset += len;
+
+    let mut inputs = Vec::with_capacity(input_count);
+    let mut input_sequences = Vec::with_capacity(input_count);
+    for _ in 0..input_count {
+        if offset + 36 > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction input prevout".to_string(),
+            ));
+        }
+        let mut prevout = [0u8; 36];
+        prevout.copy_from_slice(&unsigned[offset..offset + 36]);
+        offset += 36;
+
+        let (script_len, len) = read_compact_size(&unsigned[offset..])?;
+        offset += len;
+        if offset + script_len + 4 > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction input script".to_string(),
+            ));
+        }
+        offset += script_len;
+
+        let mut sequence = [0u8; 4];
+        sequence.copy_from_slice(&unsigned[offset..offset + 4]);
+        offset += 4;
+        inputs.push(prevout);
+        input_sequences.push(sequence);
+    }
+
+    let (output_count, len) = read_compact_size(&unsigned[offset..])?;
+    offset += len;
+    let mut outputs = Vec::with_capacity(output_count);
+    for _ in 0..output_count {
+        if offset + 8 > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction output value".to_string(),
+            ));
+        }
+        let mut value = [0u8; 8];
+        value.copy_from_slice(&unsigned[offset..offset + 8]);
+        offset += 8;
+
+        let (script_len, len) = read_compact_size(&unsigned[offset..])?;
+        offset += len;
+        if offset + script_len > unsigned.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated transaction output script".to_string(),
+            ));
+        }
+        let script = unsigned[offset..offset + script_len].to_vec();
+        offset += script_len;
+        outputs.push((value, script));
+    }
+
+    if offset + 4 > unsigned.len() {
+        return Err(GovernanceError::InvalidInput(
+            "Truncated transaction locktime".to_string(),
+        ));
+    }
+    let locktime: [u8; 4] = unsigned[offset..offset + 4]
+        .try_into()
+        .map_err(|_| GovernanceError::InvalidInput("Invalid locktime".to_string()))?;
+
+    Ok(ParsedUnsignedTx {
+        version,
+        inputs,
+        input_sequences,
+        outputs,
+        locktime,
+    })
+}
+
+fn decode_final_witness_stack(data: &[u8]) -> GovernanceResult<Vec<Vec<u8>>> {
+    let (count, len) = read_compact_size(data)?;
+    let mut offset = len;
+    let mut stack = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (item_len, len2) = read_compact_size(&data[offset..])?;
+        offset += len2;
+        if offset + item_len > data.len() {
+            return Err(GovernanceError::InvalidInput(
+                "Truncated final script witness stack".to_string(),
+            ));
+        }
+        stack.push(data[offset..offset + item_len].to_vec());
+        offset += item_len;
+    }
+    Ok(stack)
+}
+
+fn serialize_legacy_tx(
+    parsed: &ParsedUnsignedTx,
+    script_sigs: &[Vec<u8>],
+) -> GovernanceResult<Vec<u8>> {
+    if script_sigs.len() != parsed.inputs.len() {
+        return Err(GovernanceError::InvalidInput(
+            "Final scriptSig count mismatch".to_string(),
+        ));
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&parsed.version);
+    write_compact_size(&mut out, parsed.inputs.len())?;
+    for (i, prevout) in parsed.inputs.iter().enumerate() {
+        out.extend_from_slice(prevout);
+        write_compact_size(&mut out, script_sigs[i].len())?;
+        out.extend_from_slice(&script_sigs[i]);
+        out.extend_from_slice(&parsed.input_sequences[i]);
+    }
+    write_compact_size(&mut out, parsed.outputs.len())?;
+    for (value, script) in &parsed.outputs {
+        out.extend_from_slice(value);
+        write_compact_size(&mut out, script.len())?;
+        out.extend_from_slice(script);
+    }
+    out.extend_from_slice(&parsed.locktime);
+    Ok(out)
+}
+
+fn serialize_segwit_tx(
+    parsed: &ParsedUnsignedTx,
+    script_sigs: &[Vec<u8>],
+    witnesses: &[Vec<Vec<u8>>],
+) -> GovernanceResult<Vec<u8>> {
+    if script_sigs.len() != parsed.inputs.len() || witnesses.len() != parsed.inputs.len() {
+        return Err(GovernanceError::InvalidInput(
+            "Final script/witness count mismatch".to_string(),
+        ));
+    }
+    let mut out = Vec::new();
+    out.extend_from_slice(&parsed.version);
+    out.push(0x00);
+    out.push(0x01);
+    write_compact_size(&mut out, parsed.inputs.len())?;
+    for (i, prevout) in parsed.inputs.iter().enumerate() {
+        out.extend_from_slice(prevout);
+        write_compact_size(&mut out, script_sigs[i].len())?;
+        out.extend_from_slice(&script_sigs[i]);
+        out.extend_from_slice(&parsed.input_sequences[i]);
+    }
+    write_compact_size(&mut out, parsed.outputs.len())?;
+    for (value, script) in &parsed.outputs {
+        out.extend_from_slice(value);
+        write_compact_size(&mut out, script.len())?;
+        out.extend_from_slice(script);
+    }
+    for stack in witnesses {
+        write_compact_size(&mut out, stack.len())?;
+        for item in stack {
+            write_compact_size(&mut out, item.len())?;
+            out.extend_from_slice(item);
+        }
+    }
+    out.extend_from_slice(&parsed.locktime);
+    Ok(out)
+}
+
+fn extract_finalized_transaction(
+    unsigned: &[u8],
+    input_maps: &[PsbtRawMap],
+) -> GovernanceResult<Vec<u8>> {
+    let parsed = parse_unsigned_tx(unsigned)?;
+    if input_maps.len() != parsed.inputs.len() {
+        return Err(GovernanceError::InvalidInput(
+            "PSBT input map count does not match unsigned transaction".to_string(),
+        ));
+    }
+
+    let final_sig_key = vec![PsbtInputKey::FinalScriptSig as u8];
+    let final_wit_key = vec![PsbtInputKey::FinalScriptWitness as u8];
+    let mut script_sigs = Vec::with_capacity(input_maps.len());
+    let mut witnesses = Vec::with_capacity(input_maps.len());
+    let mut has_witness = false;
+
+    for input_map in input_maps {
+        script_sigs.push(input_map.get(&final_sig_key).cloned().unwrap_or_default());
+        let stack = if let Some(raw) = input_map.get(&final_wit_key) {
+            has_witness = true;
+            decode_final_witness_stack(raw)?
+        } else {
+            Vec::new()
+        };
+        witnesses.push(stack);
+    }
+
+    if has_witness {
+        serialize_segwit_tx(&parsed, &script_sigs, &witnesses)
+    } else {
+        serialize_legacy_tx(&parsed, &script_sigs)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn mock_unsigned_tx() -> Vec<u8> {
+        let mut tx = vec![
+            0x01, 0x00, 0x00, 0x00, // version
+            0x01, // input count
+        ];
+        tx.extend_from_slice(&[0u8; 32]); // prevout hash
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // prevout index
+        tx.push(0x00); // scriptSig length
+        tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // sequence
+        tx.push(0x01); // output count
+        tx.extend_from_slice(&[0u8; 8]); // value
+        tx.push(0x00); // scriptPubKey length
+        tx.extend_from_slice(&[0u8; 4]); // locktime
+        tx
+    }
+
     #[test]
     fn test_psbt_creation() {
-        let unsigned_tx = vec![0x01, 0x00, 0x00, 0x00]; // Dummy transaction
+        let unsigned_tx = mock_unsigned_tx();
         let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
         assert_eq!(psbt.version, 0);
+        assert_eq!(psbt.inputs.len(), 1);
+        assert_eq!(psbt.outputs.len(), 1);
         assert!(
             psbt.global
                 .contains_key(&vec![PsbtGlobalKey::UnsignedTx as u8])
@@ -523,7 +798,7 @@ mod tests {
 
     #[test]
     fn test_serialize_deserialize() {
-        let unsigned_tx = vec![0x01, 0x00, 0x00, 0x00];
+        let unsigned_tx = mock_unsigned_tx();
         let mut psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
         // Add some data

@@ -54,6 +54,13 @@ impl ModuleLifecycle {
         name: &str,
         config: Option<&HashMap<String, serde_json::Value>>,
     ) -> Result<()> {
+        if self.module_manager.is_none() {
+            return Err(CompositionError::InstallationFailed(
+                "ModuleManager required to start modules; use ModuleLifecycle::with_module_manager"
+                    .to_string(),
+            ));
+        }
+
         let info = self.registry.get_module(name, None)?;
 
         let config_map: HashMap<String, String> = config
@@ -82,9 +89,6 @@ impl ModuleLifecycle {
                 .await
                 .map_err(CompositionError::from)?;
 
-            self.status_cache
-                .insert(name.to_string(), ModuleStatus::Running);
-        } else {
             self.status_cache
                 .insert(name.to_string(), ModuleStatus::Running);
         }

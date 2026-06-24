@@ -9,7 +9,8 @@
 
 use crate::composition::types::*;
 use blvm_node::module::registry::{
-    ModuleDependencies as RefModuleDependencies, ModuleDiscovery as RefModuleDiscovery,
+    DiscoveredModule as RefDiscoveredModule, ModuleDependencies as RefModuleDependencies,
+    ModuleDiscovery as RefModuleDiscovery,
 };
 use blvm_node::module::traits::ModuleError as RefModuleError;
 use std::fs;
@@ -143,8 +144,10 @@ fn read_source_file(dir: &Path) -> Result<Option<ModuleSourceFile>> {
 pub struct ModuleRegistry {
     /// Base directory for modules
     modules_dir: PathBuf,
-    /// Discovered modules cache
+    /// Discovered modules cache (manifest index)
     discovered: Vec<ModuleInfo>,
+    /// Cached discovery snapshot for dependency resolution (REV-S-03/04)
+    discovered_raw: Vec<RefDiscoveredModule>,
 }
 
 impl ModuleRegistry {
@@ -153,6 +156,7 @@ impl ModuleRegistry {
         Self {
             modules_dir: modules_dir.as_ref().to_path_buf(),
             discovered: Vec::new(),
+            discovered_raw: Vec::new(),
         }
     }
 
@@ -163,7 +167,8 @@ impl ModuleRegistry {
             .discover_modules()
             .map_err(|e: RefModuleError| CompositionError::from(e))?;
 
-        self.discovered = discovered.iter().map(ModuleInfo::from).collect();
+        self.discovered_raw = discovered;
+        self.discovered = self.discovered_raw.iter().map(ModuleInfo::from).collect();
 
         Ok(self.discovered.clone())
     }
@@ -197,8 +202,7 @@ impl ModuleRegistry {
                     )));
                 }
 
-                // For now, we'll just discover from the path
-                // In a full implementation, this would copy/install the module
+                // Validate the module at the source path, then refresh the registry index.
                 let discovery = RefModuleDiscovery::new(&path);
                 let discovered = discovery
                     .discover_modules()
@@ -210,7 +214,6 @@ impl ModuleRegistry {
                     ));
                 }
 
-                // Refresh discovered modules
                 self.discover_modules()?;
 
                 Ok(ModuleInfo::from(&discovered[0]))
@@ -452,17 +455,22 @@ impl ModuleRegistry {
         self.discovered.clone()
     }
 
-    /// Resolve dependencies for a set of modules
+    /// Resolve dependencies for a set of modules using the cached discovery snapshot.
+    ///
+    /// Call [`discover_modules`](Self::discover_modules) after install/remove so the cache is current.
     pub fn resolve_dependencies(&self, module_names: &[String]) -> Result<Vec<ModuleInfo>> {
-        // First, we need to get the actual RefDiscoveredModule objects
-        // We'll need to re-discover or cache them. For now, let's re-discover.
-        let discovery = RefModuleDiscovery::new(&self.modules_dir);
-        let all_discovered = discovery
-            .discover_modules()
-            .map_err(CompositionError::from)?;
+        if module_names.is_empty() {
+            return Ok(Vec::new());
+        }
 
-        // Filter to only requested modules and convert to owned values
-        let requested: Vec<_> = all_discovered
+        if self.discovered_raw.is_empty() {
+            return Err(CompositionError::ModuleNotFound(
+                "No module discovery cache; call discover_modules() first".to_string(),
+            ));
+        }
+
+        let requested: Vec<_> = self
+            .discovered_raw
             .iter()
             .filter(|d| module_names.contains(&d.manifest.name))
             .cloned()

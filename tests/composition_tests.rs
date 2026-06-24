@@ -83,6 +83,21 @@ fn test_module_lifecycle_creation() {
     assert!(temp_dir.path().exists());
 }
 
+#[tokio::test]
+async fn test_start_module_requires_module_manager() {
+    let temp_dir = create_temp_modules_dir();
+    let registry = ModuleRegistry::new(temp_dir.path());
+    let mut lifecycle = ModuleLifecycle::new(registry);
+    let err = lifecycle
+        .start_module("any-module", None)
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        blvm_sdk::composition::CompositionError::InstallationFailed(_)
+    ));
+}
+
 // ============================================================================
 // Phase 3: NodeConfig Tests
 // ============================================================================

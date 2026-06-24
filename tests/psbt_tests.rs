@@ -10,19 +10,27 @@ use blvm_sdk::governance::psbt::{
 
 /// Test helper: Create a minimal unsigned transaction (mock)
 fn create_mock_unsigned_tx() -> Vec<u8> {
-    // Minimal transaction structure (version + input count + output count + locktime)
-    vec![
+    let mut tx = vec![
         0x01, 0x00, 0x00, 0x00, // version
-        0x01, // input count (1)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, // prevout hash
-        0xff, 0xff, 0xff, 0xff, // prevout index
-        0x00, // script length
-        0xff, 0xff, 0xff, 0xff, // sequence
-        0x01, // output count (1)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // value
-        0x00, // script length
+        0x01, // input count
+    ];
+    tx.extend_from_slice(&[0u8; 32]); // prevout hash
+    tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // prevout index
+    tx.push(0x00); // scriptSig length
+    tx.extend_from_slice(&[0xff, 0xff, 0xff, 0xff]); // sequence
+    tx.push(0x01); // output count
+    tx.extend_from_slice(&[0u8; 8]); // value
+    tx.push(0x00); // scriptPubKey length
+    tx.extend_from_slice(&[0u8; 4]); // locktime
+    tx
+}
+
+/// Test helper: 0-input / 0-output unsigned transaction
+fn create_empty_unsigned_tx() -> Vec<u8> {
+    vec![
+        0x02, 0x00, 0x00, 0x00, // version
+        0x00, // input count
+        0x00, // output count
         0x00, 0x00, 0x00, 0x00, // locktime
     ]
 }
@@ -80,10 +88,7 @@ fn test_psbt_separator() {
 fn test_psbt_add_input() {
     // Test adding input to PSBT
     let unsigned_tx = create_mock_unsigned_tx();
-    let mut psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
-
-    // Add input map
-    psbt.inputs.push(std::collections::HashMap::new());
+    let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
     assert_eq!(psbt.inputs.len(), 1);
 }
@@ -92,10 +97,7 @@ fn test_psbt_add_input() {
 fn test_psbt_add_output() {
     // Test adding output to PSBT
     let unsigned_tx = create_mock_unsigned_tx();
-    let mut psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
-
-    // Add output map
-    psbt.outputs.push(std::collections::HashMap::new());
+    let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
     assert_eq!(psbt.outputs.len(), 1);
 }
@@ -106,12 +108,7 @@ fn test_psbt_multiple_inputs_outputs() {
     let unsigned_tx = create_mock_unsigned_tx();
     let mut psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
-    // Add multiple inputs
     psbt.inputs.push(std::collections::HashMap::new());
-    psbt.inputs.push(std::collections::HashMap::new());
-
-    // Add multiple outputs
-    psbt.outputs.push(std::collections::HashMap::new());
     psbt.outputs.push(std::collections::HashMap::new());
 
     assert_eq!(psbt.inputs.len(), 2);
@@ -328,7 +325,7 @@ fn test_psbt_input_map_witness_utxo() {
     let witness_utxo = vec![0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]; // Mock UTXO
     input_map.insert(vec![PsbtInputKey::WitnessUtxo as u8], witness_utxo.clone());
 
-    psbt.inputs.push(input_map);
+    psbt.inputs[0] = input_map;
 
     assert!(psbt.inputs[0].contains_key(&vec![PsbtInputKey::WitnessUtxo as u8]));
 }
@@ -346,7 +343,7 @@ fn test_psbt_input_map_partial_sig() {
         partial_sig_data.clone(),
     );
 
-    psbt.inputs.push(input_map);
+    psbt.inputs[0] = input_map;
 
     assert!(psbt.inputs[0].contains_key(&vec![PsbtInputKey::PartialSig as u8]));
 }
@@ -361,7 +358,7 @@ fn test_psbt_input_map_sighash_type() {
     let sighash_byte = vec![SighashType::All.to_byte()];
     input_map.insert(vec![PsbtInputKey::SighashType as u8], sighash_byte.clone());
 
-    psbt.inputs.push(input_map);
+    psbt.inputs[0] = input_map;
 
     assert!(psbt.inputs[0].contains_key(&vec![PsbtInputKey::SighashType as u8]));
 }
@@ -379,7 +376,7 @@ fn test_psbt_input_map_bip32_derivation() {
         derivation_data.clone(),
     );
 
-    psbt.inputs.push(input_map);
+    psbt.inputs[0] = input_map;
 
     assert!(psbt.inputs[0].contains_key(&vec![PsbtInputKey::Bip32Derivation as u8]));
 }
@@ -401,7 +398,7 @@ fn test_psbt_output_map_redeem_script() {
         redeem_script.clone(),
     );
 
-    psbt.outputs.push(output_map);
+    psbt.outputs[0] = output_map;
 
     assert!(psbt.outputs[0].contains_key(&vec![PsbtOutputKey::RedeemScript as u8]));
 }
@@ -419,7 +416,7 @@ fn test_psbt_output_map_witness_script() {
         witness_script.clone(),
     );
 
-    psbt.outputs.push(output_map);
+    psbt.outputs[0] = output_map;
 
     assert!(psbt.outputs[0].contains_key(&vec![PsbtOutputKey::WitnessScript as u8]));
 }
@@ -437,7 +434,7 @@ fn test_psbt_output_map_bip32_derivation() {
         derivation_data.clone(),
     );
 
-    psbt.outputs.push(output_map);
+    psbt.outputs[0] = output_map;
 
     assert!(psbt.outputs[0].contains_key(&vec![PsbtOutputKey::Bip32Derivation as u8]));
 }
@@ -459,11 +456,44 @@ fn test_psbt_has_unsigned_tx() {
 
 #[test]
 fn test_psbt_empty_inputs_outputs() {
-    // Test PSBT with empty inputs/outputs (valid for creation)
+    let unsigned_tx = create_empty_unsigned_tx();
+    let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
+
+    assert_eq!(psbt.inputs.len(), 0);
+    assert_eq!(psbt.outputs.len(), 0);
+}
+
+#[test]
+fn test_psbt_extract_merges_final_script_sig() {
+    let unsigned_tx = create_mock_unsigned_tx();
+    let mut psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
+
+    let script_sig = vec![0x47, 0x30, 0x44, 0x02, 0x20, 0x01];
+    psbt.inputs[0].insert(vec![PsbtInputKey::FinalScriptSig as u8], script_sig.clone());
+
+    assert!(psbt.is_finalized());
+    let extracted = psbt.extract_transaction().unwrap();
+    assert_ne!(extracted, unsigned_tx);
+    assert!(extracted.starts_with(&unsigned_tx[0..4]));
+    // script length byte at fixed offset after 36-byte prevout in single-input tx
+    assert_eq!(extracted[41], script_sig.len() as u8);
+}
+
+#[test]
+fn test_psbt_extract_rejects_unfinalized() {
+    let unsigned_tx = create_mock_unsigned_tx();
+    let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
+    assert!(!psbt.is_finalized());
+    assert!(psbt.extract_transaction().is_err());
+}
+
+#[test]
+fn test_psbt_serialize_deserialize_preserves_input_output_counts() {
     let unsigned_tx = create_mock_unsigned_tx();
     let psbt = PartiallySignedTransaction::new(&unsigned_tx).unwrap();
 
-    // Initially empty
-    assert_eq!(psbt.inputs.len(), 0);
-    assert_eq!(psbt.outputs.len(), 0);
+    let bytes = psbt.serialize().unwrap();
+    let decoded = PartiallySignedTransaction::deserialize(&bytes).unwrap();
+    assert_eq!(decoded.inputs.len(), 1);
+    assert_eq!(decoded.outputs.len(), 1);
 }
