@@ -73,17 +73,22 @@ blvm-secp256k1 = { path = "../blvm-secp256k1" }
 default = ["node"]
 registry = ["dep:reqwest", "dep:flate2", "dep:tar"]
 git = ["dep:git2"]
-# Match historical `blvm-node` default **minus** `rocksdb` (avoids librocksdb-sys in module/out-of-process builds).
+# Match blvm-node common defaults + sled; nix/libc enabled when building on Unix hosts.
 node = [
     "dep:blvm-node",
     "blvm-node/sled",
+    "blvm-node/heed3",
+    "blvm-node/redb",
     "blvm-node/sysinfo",
-    "blvm-node/nix",
-    "blvm-node/libc",
     "blvm-node/production",
     "blvm-node/governance",
     "blvm-node/utxo-commitments",
     "blvm-node/protocol-verification",
+    "blvm-node/iroh",
+    "blvm-node/dandelion",
+    "blvm-node/sigop",
+    "blvm-node/rest-api",
+    "blvm-node/bip70-http",
 ]
 wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
 
