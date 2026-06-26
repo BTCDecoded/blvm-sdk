@@ -1,0 +1,9 @@
+# cargo audit — advisory suppressions for blvm-sdk (crates.io CI).
+# blvm-node `node` feature pulls iroh → hickory-proto; same tracked suppressions as blvm-node.
+
+[advisories]
+ignore = [
+    # hickory-proto via iroh 0.95; fixed in hickory >=0.26.x pending iroh upgrade.
+    "RUSTSEC-2026-0118",
+    "RUSTSEC-2026-0119",
+]

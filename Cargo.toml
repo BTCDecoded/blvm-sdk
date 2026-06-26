@@ -46,6 +46,12 @@ chrono = { version = "=0.4.35", features = ["serde"] }
 blvm-sdk-macros = { path = "crates/blvm-sdk-macros" }
 clap = { version = "=4.4.11", features = ["derive"] }
 
+# RUSTSEC-2026-0009: iroh/rcgen transitive; force >=0.3.47 (crates.io ships 0.3.47+).
+time = { version = ">=0.3.47", default-features = false }
+# Pin ed25519 + pkcs8: iroh via blvm-node → ed25519-dalek 3.0.0-pre.1 (same as blvm-node).
+ed25519 = "=3.0.0-rc.4"
+pkcs8 = "=0.11.0-rc.11"
+
 # Composition framework dependencies
 toml = "=0.8.2"
 # Modules use sled for `open_module_db`; do not pull `blvm-node` default `rocksdb` (heavy in CI/cross).
@@ -80,6 +86,8 @@ node = [
     "blvm-node/heed3",
     "blvm-node/redb",
     "blvm-node/sysinfo",
+    "blvm-node/nix",
+    "blvm-node/libc",
     "blvm-node/production",
     "blvm-node/governance",
     "blvm-node/utxo-commitments",
