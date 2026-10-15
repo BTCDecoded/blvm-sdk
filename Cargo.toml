@@ -72,8 +72,6 @@ crossbeam-epoch = ">=0.9.20"
 h2 = ">=0.4.16"
 # RUSTSEC-2026-0346/0347/0348/0349. blvm-node allows the 0.23 line.
 rustls = ">=0.23.46, <0.24"
-# RUSTSEC-2026-0338/0339/0340/0341/0342. iroh pulls quinn-proto 0.11.15 unless the floor is here.
-quinn-proto = ">=0.11.18, <0.12"
 
 # Local monorepo: sibling paths override the version pins above.
 [patch.crates-io]

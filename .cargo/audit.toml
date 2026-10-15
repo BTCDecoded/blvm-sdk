@@ -6,4 +6,12 @@ ignore = [
     # hickory-proto via iroh 0.95; fixed in hickory >=0.26.x pending iroh upgrade.
     "RUSTSEC-2026-0118",
     "RUSTSEC-2026-0119",
+    # quinn 0.11.12 needs quinn-proto >=0.11.18, which pulls rand 0.10 and chacha20 0.10.2.
+    # That cannot unify with iroh 0.95 → crypto_box 0.10.0-pre.0 → chacha20 0.10.0-rc.2.
+    # iroh stays pinned at =0.95 in blvm-node.
+    "RUSTSEC-2026-0338",
+    "RUSTSEC-2026-0339",
+    "RUSTSEC-2026-0340",
+    "RUSTSEC-2026-0341",
+    "RUSTSEC-2026-0342",
 ]
