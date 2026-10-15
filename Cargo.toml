@@ -62,16 +62,18 @@ reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
 flate2 = { version = "1.0", optional = true, default-features = false, features = ["rust_backend"] }
 tar = { version = "0.4", optional = true }
 git2 = { version = "0.18", optional = true }
-# RUSTSEC-2026-0222 / 0269 / 0316: 36.0.9 is vulnerable. 36.0.17 covers all three.
-wasmtime = { version = "=36.0.17", optional = true, default-features = false, features = ["wat", "cranelift", "runtime"] }
+# RUSTSEC-2026-0363: 36.0.17 is vulnerable. 36.0.18 is the patched 36.x release.
+wasmtime = { version = "=36.0.18", optional = true, default-features = false, features = ["wat", "cranelift", "runtime"] }
 # Floors so a fresh crates.io resolve (this repo does not commit Cargo.lock) cannot
 # keep the vulnerable releases cargo-audit rejects.
 # RUSTSEC-2026-0204 via sled.
 crossbeam-epoch = ">=0.9.20"
 # RUSTSEC-2026-0258 via reqwest/hyper.
 h2 = ">=0.4.16"
-# RUSTSEC-2026-0285. blvm-node allows the 0.23 line.
-rustls = ">=0.23.45, <0.24"
+# RUSTSEC-2026-0346/0347/0348/0349. blvm-node allows the 0.23 line.
+rustls = ">=0.23.46, <0.24"
+# RUSTSEC-2026-0338/0339/0340/0341/0342. iroh pulls quinn-proto 0.11.15 unless the floor is here.
+quinn-proto = ">=0.11.18, <0.12"
 
 # Local monorepo: sibling paths override the version pins above.
 [patch.crates-io]
