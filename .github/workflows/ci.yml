@@ -895,6 +895,49 @@ jobs:
             exit 1
           fi
 
+      # Commit the [package] version bumps back to main (same commit message as blvm-consensus).
+      # Only after both crates are on crates.io, and only the two [package] version lines: the
+      # release manifests on disk also pin blvm-sdk-macros/blvm-node to crates.io versions and
+      # strip [patch.crates-io], which must not land on main (main keeps the path dep).
+      # Uses the checkout credential (GITHUB_TOKEN, contents: write), same as the tag push below.
+      - name: Commit Cargo.toml version bumps
+        if: |
+          env.CARGO_REGISTRY_TOKEN != '' &&
+          steps.publish_macros.outputs.published == 'true' &&
+          steps.publish_sdk.outputs.published == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git config user.email "ci@btcdecoded.com"
+          git config user.name "BLVM CI"
+          for f in Cargo.toml crates/blvm-sdk-macros/Cargo.toml; do
+            git show "HEAD:${f}" | awk -v ver="$VERSION" '
+              BEGIN { in_package = 0 }
+              /^\[package\]/ { in_package = 1; print; next }
+              in_package && /^\[/ { in_package = 0 }
+              in_package && /^version = / {
+                print "version = \"" ver "\""
+                next
+              }
+              { print }
+            ' > "${RUNNER_TEMP}/bump.toml"
+            BLOB=$(git hash-object -w "${RUNNER_TEMP}/bump.toml")
+            git update-index --cacheinfo "100644,${BLOB},${f}"
+          done
+          if git diff --cached --quiet; then
+            echo "No version change to commit"
+            exit 0
+          fi
+          git commit -m "Bump version to ${VERSION} for release [skip ci]"
+          if git push origin "HEAD:${{ github.ref }}"; then
+            echo "✅ Pushed version bump $(git rev-parse --short HEAD) to ${{ github.ref }}"
+          else
+            # Crates are already published; do not fail the job before the tag and GitHub Release.
+            MSG="Version bump commit $(git rev-parse --short HEAD) (${VERSION}) was NOT pushed to ${{ github.ref }}. main still has the old [package] versions; open a PR setting both manifests to ${VERSION}."
+            echo "::warning title=Version bump not pushed::${MSG}"
+            echo "### ⚠️ Version bump not pushed" >> "$GITHUB_STEP_SUMMARY"
+            echo "${MSG}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Verify published crates on crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
         run: |
@@ -921,7 +964,12 @@ jobs:
             echo "⚠️  Tag ${VERSION_TAG} already exists, skipping"
           else
             git tag -a "$VERSION_TAG" -m "Release ${VERSION_TAG}"
-            git push origin "$VERSION_TAG"
+            if ! git push origin "$VERSION_TAG"; then
+              # HEAD is the version bump commit when the step above committed one, else github.sha.
+              TAG_SHA=$(git rev-parse HEAD)
+              echo "::error::Tag push failed. Tag manually at the release commit ${TAG_SHA} (version bump commit if present; it carries the published versions): git fetch origin && git tag -a ${VERSION_TAG} ${TAG_SHA} -m 'Release ${VERSION_TAG}' && git push origin ${VERSION_TAG}"
+              exit 1
+            fi
             echo "✅ Created and pushed tag ${VERSION_TAG}"
           fi
 

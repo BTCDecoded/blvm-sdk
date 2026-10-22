@@ -1,6 +1,6 @@
 [package]
 name = "blvm-sdk-macros"
-version = "0.1.0"
+version = "0.1.19"
 edition = "2021"
 description = "Procedural macros for BLVM SDK CLI module system"
 license = "MIT"
