@@ -96,7 +96,6 @@ node = [
     "blvm-node/dandelion",
     "blvm-node/sigop",
     "blvm-node/rest-api",
-    "blvm-node/bip70-http",
 ]
 wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
 
