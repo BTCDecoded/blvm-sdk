@@ -1,4 +1,4 @@
-# Bitcoin Commons Developer SDK
+# BLVM SDK
 
 [![crates.io](https://img.shields.io/crates/v/blvm-sdk.svg)](https://crates.io/crates/blvm-sdk)
 [![docs.rs](https://docs.rs/blvm-sdk/badge.svg)](https://docs.rs/blvm-sdk)
@@ -13,7 +13,7 @@ Provides the institutional layer for Bitcoin governance, offering reusable gover
 
 ## Architecture Position
 
-Tier 5 of the 6-tier Bitcoin Commons architecture (BLVM technology stack):
+Tier 5 of the BLVM stack. Bitcoin Commons is the specification and the governance model. BLVM is one implementation of that spec.
 
 ```
 1. blvm-spec (Orange Paper - mathematical foundation)

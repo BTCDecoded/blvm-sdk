@@ -1,12 +1,12 @@
 # Contributing to blvm-sdk
 
-Thank you for your interest in contributing to blvm-sdk! This document contains **repo-specific guidelines only**. For comprehensive contributing guidelines, see the [BLVM Documentation](https://docs.thebitcoincommons.org/development/contributing.html).
+Thank you for your interest in contributing to blvm-sdk! This document contains **repo-specific guidelines only**. For comprehensive contributing guidelines, see the [BLVM Documentation](https://docs.btcdecoded.org/blvm/development/contributing.html).
 
 ## Quick Links
 
-- **[Complete Contributing Guide](https://docs.thebitcoincommons.org/development/contributing.html)** - Full developer workflow
-- **[PR Process](https://docs.thebitcoincommons.org/development/pr-process.html)** - Governance tiers and review process
-- **[SDK Documentation](https://docs.thebitcoincommons.org/sdk/overview.html)** - SDK guides
+- **[Complete Contributing Guide](https://docs.btcdecoded.org/blvm/development/contributing.html)** - Full developer workflow
+- **[PR Process](https://docs.btcdecoded.org/blvm/development/pr-process.html)** - Governance tiers and review process
+- **[SDK Documentation](https://docs.btcdecoded.org/blvm/sdk/overview.html)** - SDK guides
 
 ## Code of Conduct
 
@@ -75,7 +75,7 @@ cargo clippy --all-targets --all-features
 
 ## Getting Help
 
-- **Documentation**: [docs.thebitcoincommons.org](https://docs.thebitcoincommons.org)
+- **Documentation**: [docs.btcdecoded.org/blvm](https://docs.btcdecoded.org/blvm)
 - **Issues**: Use GitHub issues for bugs and feature requests
 - **Discussions**: Use GitHub discussions for questions
 - **Security**: See [SECURITY.md](SECURITY.md)
