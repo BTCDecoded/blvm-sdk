@@ -38,6 +38,10 @@ pub struct WasmHostContext {
     pub(crate) wasm_limits: StoreLimits,
     /// Fuel reset before each guest entry when [`wasmtime::Config::consume_fuel`] is enabled.
     pub(crate) fuel_per_invocation: u64,
+    /// `host_node_call`. Set by the node after the module's permissions are registered.
+    pub(crate) node_call: Option<
+        std::sync::Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>,
+    >,
 }
 
 impl WasmHostContext {
@@ -53,6 +57,7 @@ impl WasmHostContext {
             next_iter_id: RefCell::new(1),
             wasm_limits,
             fuel_per_invocation,
+            node_call: None,
         }
     }
 
@@ -315,6 +320,44 @@ pub fn create_host_imports(engine: &Engine) -> Result<Linker<WasmHostContext>, S
                     ctx.open_tree(name).map_err(|e| e.to_string())
                 })
                 .unwrap_or(-1)
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    linker
+        .func_wrap(
+            "env",
+            "host_node_call",
+            |mut caller: wasmtime::Caller<'_, WasmHostContext>,
+             method_ptr: i32,
+             method_len: i32,
+             args_ptr: i32,
+             args_len: i32|
+             -> (i32, i32) {
+                const OUT_OFFSET: usize = 0x3000;
+                const OUT_MAX: usize = 0x1000;
+                let method = read_str(&mut caller, method_ptr, method_len).unwrap_or_default();
+                let args = read_str(&mut caller, args_ptr, args_len).unwrap_or_default();
+                let call = caller.data().node_call.clone();
+                let body = match call {
+                    Some(call) => call(&method, &args),
+                    None => Err("host_node_call is not configured".to_string()),
+                };
+                let json = match body {
+                    Ok(json) => json,
+                    Err(err) => serde_json::json!({ "error": err }).to_string(),
+                };
+                let bytes = json.into_bytes();
+                if bytes.len() > OUT_MAX {
+                    return (0, 0);
+                }
+                let Some(mem) = caller.get_export("memory").and_then(Extern::into_memory) else {
+                    return (0, 0);
+                };
+                if mem.write(&mut caller, OUT_OFFSET, &bytes).is_err() {
+                    return (0, 0);
+                }
+                (OUT_OFFSET as i32, bytes.len() as i32)
             },
         )
         .map_err(|e| e.to_string())?;
