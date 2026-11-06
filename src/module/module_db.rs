@@ -54,7 +54,7 @@ impl ModuleDb {
 
     /// Open at data_dir, or fallback to temp dir when primary open fails.
     ///
-    /// Both attempts use [`open_module_db`](super::database::open_module_db) (Sled/TidesDB).
+    /// Both attempts use [`open_module_db`](super::database::open_module_db) (Sled or heed3).
     /// Avoids a hard-coded Redb fallback, which fails when `blvm-node` is built without `redb`.
     pub fn open_or_temp<P: AsRef<Path>>(data_dir: P, module_name: &str) -> Result<Self> {
         let data_dir = data_dir.as_ref().to_path_buf();
