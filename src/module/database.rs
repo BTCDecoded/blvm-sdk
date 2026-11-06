@@ -43,10 +43,10 @@ fn supports_dynamic_trees(backend: DatabaseBackend) -> bool {
 
 /// Best available backend for module databases (prefers fully-dynamic backends).
 ///
-/// Returns Sled as the preferred target. `create_database` surfaces an error if that
-/// feature is not compiled into blvm-node, and the caller falls through to heed3.
+/// Heed3 is the default. `try_create_module_kv_database_with_preference` still tries
+/// Sled when that feature is compiled and heed3 is not.
 fn best_module_backend() -> DatabaseBackend {
-    DatabaseBackend::Sled
+    DatabaseBackend::Heed3
 }
 
 /// Try Sled then heed3 for a module-process KV store (dynamic `open_tree` names).
@@ -66,7 +66,7 @@ fn try_open_dynamic_module_kv(db_path: &Path) -> Result<Arc<dyn Database>> {
 /// 1. `MODULE_CONFIG_DATABASE_BACKEND` — set by the node from effective module DB policy (see
 ///    `blvm_node::storage::database::module_subprocess_database_backend_preference`)
 /// 2. `MODULE_DATABASE_BACKEND` env var (same values; manual override)
-/// 3. Auto-select Sled as first choice, then fall back through Sled then heed3
+/// 3. Auto-select heed3, then any other dynamic backend compiled into blvm-node
 ///
 /// If the resolved backend does not support dynamic trees the function warns and falls back
 /// as above. If no dynamic backend is compiled into `blvm-node`, it returns an error.
@@ -124,7 +124,7 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
     try_open_dynamic_module_kv(&db_path).map_err(|e| {
         anyhow::anyhow!(
             "{e} (hint: {:?} is not usable for arbitrary module `open_tree` names; \
-             `blvm-sdk` feature `node` enables `blvm-node/sled`)",
+             `blvm-sdk` feature `node` enables heed3; `sled` is a separate feature)",
             backend
         )
     })

@@ -54,7 +54,7 @@ pkcs8 = "=0.11.0-rc.11"
 
 # Composition framework dependencies
 toml = "=0.8.2"
-# Modules use sled for `open_module_db`; do not pull `blvm-node` default `rocksdb` (heavy in CI/cross).
+# Module KV uses heed3 by default. `sled` and `redb` are optional features. Do not pull rocksdb.
 blvm-node = { version = ">=0.1, <1", optional = true, default-features = false }
 tokio = { version = "=1.54.1", features = ["rt", "macros", "sync", "fs"] }
 tracing = "0.1"
@@ -87,14 +87,12 @@ blvm-secp256k1 = { path = "../blvm-secp256k1" }
 default = ["node"]
 registry = ["dep:reqwest", "dep:flate2", "dep:tar"]
 git = ["dep:git2"]
-# Match blvm-node common defaults + sled; nix/libc enabled when building on Unix hosts.
+# Same product features as the blvm binary default. Heed3 is the only database.
+# Redb, sled, and nix stay available as their own features.
 node = [
     "dep:blvm-node",
-    "blvm-node/sled",
     "blvm-node/heed3",
-    "blvm-node/redb",
     "blvm-node/sysinfo",
-    "blvm-node/nix",
     "blvm-node/libc",
     "blvm-node/production",
     "blvm-node/governance",
@@ -105,7 +103,11 @@ node = [
     "blvm-node/sigop",
     "blvm-node/rest-api",
 ]
-wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules"]
+sled = ["blvm-node/sled"]
+redb = ["blvm-node/redb"]
+nix = ["blvm-node/nix"]
+# The WASM loader opens a redb database. That feature stays on this path only.
+wasm-modules = ["dep:wasmtime", "node", "blvm-node/wasm-modules", "blvm-node/redb"]
 
 [dev-dependencies]
 # Testing
