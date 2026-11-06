@@ -22,6 +22,7 @@ pub struct WasmModuleInstance {
     _engine: Engine,
     store: Mutex<Store<WasmHostContext>>,
     instance: Instance,
+    last_on_event: Mutex<Option<String>>,
 }
 
 fn reset_guest_fuel(store: &mut Store<WasmHostContext>) -> wasmtime::Result<()> {
@@ -57,6 +58,7 @@ impl WasmModuleInstance {
             _engine: engine,
             store: Mutex::new(store),
             instance,
+            last_on_event: Mutex::new(None),
         })
     }
 
@@ -184,6 +186,53 @@ impl WasmModuleInstance {
         let bytes = &data[ptr as usize..end];
         String::from_utf8(bytes.to_vec()).map_err(|e| wasmtime::Error::msg(e.to_string()))
     }
+
+    /// Call `on_event(ptr, len) -> (ptr, len)`.
+    fn call_on_event_export(&self, event_json: &str) -> Result<String, wasmtime::Error> {
+        let mut store = self
+            .store
+            .lock()
+            .map_err(|e| wasmtime::Error::msg(e.to_string()))?;
+        let func = self
+            .instance
+            .get_func(&mut *store, "on_event")
+            .ok_or_else(|| wasmtime::Error::msg("Export 'on_event' not found"))?;
+        let memory = self
+            .instance
+            .get_memory(&mut *store, "memory")
+            .ok_or_else(|| wasmtime::Error::msg("Module has no 'memory' export"))?;
+        let bytes = event_json.as_bytes();
+        let len = bytes.len().min(BUF_SIZE);
+        memory.write(&mut *store, BUF_A_OFFSET, &bytes[..len])?;
+        reset_guest_fuel(&mut store)?;
+        let mut results = [wasmtime::Val::I32(0), wasmtime::Val::I32(0)];
+        func.call(
+            &mut *store,
+            &[
+                wasmtime::Val::I32(BUF_A_OFFSET as i32),
+                wasmtime::Val::I32(len as i32),
+            ],
+            &mut results,
+        )?;
+        let ptr = results[0].i32().ok_or_else(|| {
+            wasmtime::Error::msg("Export 'on_event' must return (i32, i32); bad ptr")
+        })? as u32;
+        let out_len = results[1].i32().ok_or_else(|| {
+            wasmtime::Error::msg("Export 'on_event' must return (i32, i32); bad len")
+        })? as u32;
+        if out_len == 0 {
+            return Ok(String::new());
+        }
+        let data = memory.data(&mut *store);
+        let end = (ptr + out_len) as usize;
+        if end > data.len() {
+            return Err(wasmtime::Error::msg(
+                "Export 'on_event' returned invalid ptr/len",
+            ));
+        }
+        String::from_utf8(data[ptr as usize..end].to_vec())
+            .map_err(|e| wasmtime::Error::msg(e.to_string()))
+    }
 }
 
 impl blvm_node::module::wasm::WasmModuleInstance for WasmModuleInstance {
@@ -310,5 +359,42 @@ impl blvm_node::module::wasm::WasmModuleInstance for WasmModuleInstance {
             about,
             subcommands,
         })
+    }
+
+    fn event_types(&self) -> Result<Vec<blvm_node::module::traits::EventType>, ModuleError> {
+        let json = self.call_string_export("event_types").map_err(|e| {
+            ModuleError::OperationError(format!("WASM event_types failed: {e}"))
+        })?;
+        let names: Vec<String> = serde_json::from_str(&json).map_err(|e| {
+            ModuleError::OperationError(format!("WASM event_types is not a JSON array: {e}"))
+        })?;
+        names
+            .into_iter()
+            .map(|name| {
+                serde_json::from_value(serde_json::Value::String(name.clone())).map_err(|e| {
+                    ModuleError::OperationError(format!("Unknown WASM event type '{name}': {e}"))
+                })
+            })
+            .collect()
+    }
+
+    fn on_event(&self, event_json: &str) -> Result<String, ModuleError> {
+        let result = self.call_on_event_export(event_json).map_err(|e| {
+            ModuleError::OperationError(format!("WASM on_event failed: {e}"))
+        })?;
+        if let Ok(mut slot) = self.last_on_event.lock() {
+            *slot = Some(result.clone());
+        }
+        Ok(result)
+    }
+
+    fn last_on_event_result(&self) -> Option<String> {
+        self.last_on_event.lock().ok().and_then(|slot| slot.clone())
+    }
+
+    fn set_host_node_call(&self, call: blvm_node::module::wasm::WasmHostNodeCall) {
+        if let Ok(mut store) = self.store.lock() {
+            store.data_mut().node_call = Some(call);
+        }
     }
 }
