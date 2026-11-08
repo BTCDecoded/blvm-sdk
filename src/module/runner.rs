@@ -516,7 +516,7 @@ async fn register_sdk_tick<FTick, FutTick>(
 
 enum LoopWake {
     SerialDone,
-    Event(Result<ModuleMessage, tokio::sync::broadcast::error::RecvError>),
+    Event(Box<Result<ModuleMessage, tokio::sync::broadcast::error::RecvError>>),
     Invocation(Option<(InvocationMessage, oneshot::Sender<InvocationResultMessage>)>),
 }
 
@@ -579,7 +579,7 @@ pub(crate) async fn module_loop<M, C, F, FE, Fut>(
         if let Some(mut job) = serial.take() {
             let wake = tokio::select! {
                 _ = &mut job => LoopWake::SerialDone,
-                msg = event_rx.recv() => LoopWake::Event(msg),
+                msg = event_rx.recv() => LoopWake::Event(Box::new(msg)),
                 inv = invocation_rx.recv() => LoopWake::Invocation(inv),
             };
             if !matches!(wake, LoopWake::SerialDone) {
@@ -587,10 +587,11 @@ pub(crate) async fn module_loop<M, C, F, FE, Fut>(
             }
             match wake {
                 LoopWake::SerialDone => {}
-                LoopWake::Event(Ok(ModuleMessage::Event(event))) => {
-                    queued_events.push_back(event);
+                LoopWake::Event(msg) => {
+                    if let Ok(ModuleMessage::Event(event)) = *msg {
+                        queued_events.push_back(event);
+                    }
                 }
-                LoopWake::Event(_) => {}
                 LoopWake::Invocation(Some((invocation, result_tx))) => {
                     if detached_timer(&timers, &invocation) {
                         if let InvocationType::Timer(fire) = invocation.invocation_type {
@@ -784,7 +785,7 @@ mod tests {
     async fn until(order: &Mutex<Vec<&'static str>>, needle: &'static str) {
         tokio::time::timeout(Duration::from_secs(2), async {
             loop {
-                if order.lock().unwrap().iter().any(|item| *item == needle) {
+                if order.lock().unwrap().contains(&needle) {
                     break;
                 }
                 tokio::task::yield_now().await;

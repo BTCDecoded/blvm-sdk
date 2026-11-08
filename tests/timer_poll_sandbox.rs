@@ -28,8 +28,10 @@ async fn upstream_poll_example_runs_in_the_module_sandbox() {
 
     let storage = Arc::new(Storage::new(root.path().join("chain")).unwrap());
     let mut api = NodeApiImpl::new(storage);
-    let mut config = TimerConfig::default();
-    config.min_period_ms = 1;
+    let config = TimerConfig {
+        min_period_ms: 1,
+        ..Default::default()
+    };
     let service = TimerService::spawn(config, std::collections::HashMap::new());
     api.set_timer_service(service.clone());
     let mut server = ModuleIpcServer::new(&socket).with_timer_service(service.clone());

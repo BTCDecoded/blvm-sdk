@@ -123,9 +123,8 @@ pub fn open_module_db<P: AsRef<Path>>(data_dir: P) -> Result<Arc<dyn Database>> 
     // Use whichever dynamic KV backends are compiled into blvm-node (Sled / heed3).
     try_open_dynamic_module_kv(&db_path).map_err(|e| {
         anyhow::anyhow!(
-            "{e} (hint: {:?} is not usable for arbitrary module `open_tree` names; \
-             `blvm-sdk` feature `node` enables heed3; `sled` is a separate feature)",
-            backend
+            "{e} (hint: {backend:?} is not usable for arbitrary module `open_tree` names; \
+             `blvm-sdk` feature `node` enables heed3; `sled` is a separate feature)"
         )
     })
 }
@@ -263,7 +262,7 @@ pub fn run_migrations_down(
         if let Some(down_fn) = down {
             down_fn(&ctx)?;
         } else {
-            anyhow::bail!("Migration version {} has no down function", version);
+            anyhow::bail!("Migration version {version} has no down function");
         }
     }
 
