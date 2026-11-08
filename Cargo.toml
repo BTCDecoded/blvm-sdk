@@ -125,6 +125,10 @@ name = "demo-module"
 path = "examples/demo-module/main.rs"
 
 [[bin]]
+name = "timer-poll"
+path = "examples/timer_poll.rs"
+
+[[bin]]
 name = "blvm-keygen"
 path = "src/bin/blvm-keygen.rs"
 

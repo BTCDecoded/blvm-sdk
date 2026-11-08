@@ -107,7 +107,7 @@ macro_rules! migrations {
 /// Run a module with automatic connect, CLI/RPC/event registration, and dispatch.
 ///
 /// Replaces manual main-loop boilerplate. CLI spec, RPC methods, and event types are
-/// auto-discovered from #[command], #[rpc_methods], and #[event_handlers]. On unload
+/// auto-discovered from `#[command]`, `#[rpc_methods]`, and `#[event_handlers]`. On unload
 /// (invocation channel closed), the module exits cleanly.
 ///
 /// # Example (unified module — preferred)
@@ -268,6 +268,11 @@ macro_rules! run_module {
                     None,
                     Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
                 ),
+                _ => (
+                    false,
+                    None,
+                    Some("unsupported invocation".to_string()),
+                ),
             };
             InvocationResultMessage {
                 correlation_id: invocation.correlation_id,
@@ -348,6 +353,11 @@ macro_rules! run_module {
                     false,
                     None,
                     Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
+                ),
+                _ => (
+                    false,
+                    None,
+                    Some("unsupported invocation".to_string()),
                 ),
             };
             InvocationResultMessage {
@@ -461,6 +471,11 @@ macro_rules! run_module {
                     None,
                     Some("ModuleApi is not supported by run_module!; use run_module_with_setup_and_api".to_string()),
                 ),
+                _ => (
+                    false,
+                    None,
+                    Some("unsupported invocation".to_string()),
+                ),
             };
             InvocationResultMessage {
                 correlation_id: invocation.correlation_id,
@@ -532,6 +547,8 @@ pub mod runner;
 #[cfg(feature = "node")]
 pub mod security;
 #[cfg(feature = "node")]
+pub mod timers;
+#[cfg(feature = "node")]
 pub mod traits;
 
 // Re-export main types for convenience (requires node)
@@ -559,5 +576,7 @@ pub use runner::{
 pub use security::{Permission, PermissionSet};
 #[cfg(feature = "node")]
 pub use storage::{DatabaseStorageAdapter, ModuleStorage, ModuleStorageDatabaseBridge, ModuleTree};
+#[cfg(feature = "node")]
+pub use timers::{Exec, TimerBuilder, TimerHandle, TimerRegistry, sdk_tick_spec};
 #[cfg(feature = "node")]
 pub use traits::*;
