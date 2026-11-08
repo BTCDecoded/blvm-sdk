@@ -362,9 +362,9 @@ impl blvm_node::module::wasm::WasmModuleInstance for WasmModuleInstance {
     }
 
     fn event_types(&self) -> Result<Vec<blvm_node::module::traits::EventType>, ModuleError> {
-        let json = self.call_string_export("event_types").map_err(|e| {
-            ModuleError::OperationError(format!("WASM event_types failed: {e}"))
-        })?;
+        let json = self
+            .call_string_export("event_types")
+            .map_err(|e| ModuleError::OperationError(format!("WASM event_types failed: {e}")))?;
         let names: Vec<String> = serde_json::from_str(&json).map_err(|e| {
             ModuleError::OperationError(format!("WASM event_types is not a JSON array: {e}"))
         })?;
@@ -379,9 +379,9 @@ impl blvm_node::module::wasm::WasmModuleInstance for WasmModuleInstance {
     }
 
     fn on_event(&self, event_json: &str) -> Result<String, ModuleError> {
-        let result = self.call_on_event_export(event_json).map_err(|e| {
-            ModuleError::OperationError(format!("WASM on_event failed: {e}"))
-        })?;
+        let result = self
+            .call_on_event_export(event_json)
+            .map_err(|e| ModuleError::OperationError(format!("WASM on_event failed: {e}")))?;
         if let Ok(mut slot) = self.last_on_event.lock() {
             *slot = Some(result.clone());
         }

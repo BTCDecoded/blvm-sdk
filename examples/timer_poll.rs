@@ -13,7 +13,7 @@ use blvm_node::module::ipc::protocol::{
 };
 use blvm_node::module::timers::types::{JitterShape, Overlap, TimerAck};
 use blvm_sdk::module::{Exec, TimerBuilder, TimerRegistry};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::runtime::Builder::new_current_thread()

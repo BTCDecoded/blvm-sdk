@@ -39,9 +39,8 @@ pub struct WasmHostContext {
     /// Fuel reset before each guest entry when [`wasmtime::Config::consume_fuel`] is enabled.
     pub(crate) fuel_per_invocation: u64,
     /// `host_node_call`. Set by the node after the module's permissions are registered.
-    pub(crate) node_call: Option<
-        std::sync::Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>,
-    >,
+    pub(crate) node_call:
+        Option<std::sync::Arc<dyn Fn(&str, &str) -> Result<String, String> + Send + Sync>>,
 }
 
 impl WasmHostContext {

@@ -343,7 +343,9 @@ fn env_override_stmt(
     } else if ty_compact.starts_with("Option<") {
         quote! {
             if let Ok(__v) = std::env::var(#env_lit) {
-                self.#field_name = Some(__v);
+                if let Ok(__parsed) = __v.parse() {
+                    self.#field_name = Some(__parsed);
+                }
             }
         }
     } else if ty_compact.starts_with("Vec<") {

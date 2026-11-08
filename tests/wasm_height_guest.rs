@@ -11,7 +11,7 @@ use blvm_node::module::manager::ModuleManager;
 use blvm_node::module::traits::{EventType, ModuleMetadata};
 use blvm_sdk::module::wasm::BlvmSdkWasmLoader;
 
-#[path = "../../blvm-node/tests/stub_node_api.rs"]
+#[path = "stub_node_api.rs"]
 mod stub_node_api;
 
 const GUEST_WAT: &str = r#"
@@ -40,11 +40,9 @@ const GUEST_WAT: &str = r#"
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn wasm_guest_receives_new_block_and_reads_height() {
-    let manifest = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../blvm/Cargo.toml"
-    ))
-    .expect("blvm Cargo.toml");
+    let manifest =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../blvm/Cargo.toml"))
+            .expect("blvm Cargo.toml");
     let default = manifest
         .split("default = [")
         .nth(1)
@@ -64,7 +62,10 @@ async fn wasm_guest_receives_new_block_and_reads_height() {
     let mut manager = ModuleManager::new(temp.path(), temp.path(), temp.path());
     manager.set_wasm_loader(Arc::new(BlvmSdkWasmLoader));
     manager
-        .start(temp.path().join("node.sock"), Arc::new(stub_node_api::MockNodeAPI))
+        .start(
+            temp.path().join("node.sock"),
+            Arc::new(stub_node_api::MockNodeAPI),
+        )
         .await
         .expect("start module manager");
 
@@ -143,7 +144,10 @@ async fn wasm_guest_reads_block_with_read_blockchain() {
     let mut manager = ModuleManager::new(temp.path(), temp.path(), temp.path());
     manager.set_wasm_loader(Arc::new(BlvmSdkWasmLoader));
     manager
-        .start(temp.path().join("node.sock"), Arc::new(stub_node_api::MockNodeAPI))
+        .start(
+            temp.path().join("node.sock"),
+            Arc::new(stub_node_api::MockNodeAPI),
+        )
         .await
         .expect("start module manager");
 
