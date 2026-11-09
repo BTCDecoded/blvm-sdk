@@ -308,10 +308,10 @@ The library depends on the following crates:
 
 ## Version Compatibility
 
-- **Rust**: 1.70+
-- **secp256k1**: 0.28.2
-- **bitcoin**: 0.31.2
-- **serde**: 1.0.226
+- **Rust**: `1.85` (`rust-version` in `Cargo.toml`)
+- **blvm-secp256k1**: `>=0.1, <1` (there is no crates.io `secp256k1` pin and no `bitcoin` crate)
+- **serde**: `=1.0.228`
+- **`--format`**: `text` or `json`. There is no PEM output format.
 
 ## Security Notes
 

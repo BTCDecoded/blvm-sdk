@@ -77,7 +77,7 @@ let valid = multisig.verify(&message.to_signing_bytes(), &[signature])?;
 
 ```bash
 # Generate a keypair
-blvm-keygen --output alice.key --format pem
+blvm-keygen --output alice.key --format text
 
 # Sign a release
 blvm-sign release \
