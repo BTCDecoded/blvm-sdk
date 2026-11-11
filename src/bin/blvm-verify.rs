@@ -6,6 +6,7 @@ use blvm_sdk::cli::input::{parse_comma_separated, parse_threshold};
 use blvm_sdk::cli::output::{OutputFormat, OutputFormatter};
 use blvm_sdk::governance::{GovernanceMessage, Multisig, PublicKey, Signature};
 use clap::{Parser, Subcommand};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -77,6 +78,9 @@ fn main() {
         Ok(result) => {
             let output = format_verification_output(&result, &args, &formatter);
             println!("{output}");
+            if !result.threshold_met {
+                std::process::exit(1);
+            }
         }
         Err(e) => {
             eprintln!("{}", formatter.format_error(&*e));
@@ -118,18 +122,20 @@ fn verify_message(args: &Args) -> Result<VerificationResult, Box<dyn std::error:
     let message_bytes = message.to_signing_bytes();
     let mut valid_signatures = 0;
     let mut invalid_signatures = 0;
+    let mut seen_keys = HashSet::new();
 
     for signature in &signatures {
-        let mut verified = false;
-        for public_key in &public_keys {
+        let mut matched = false;
+        for (index, public_key) in public_keys.iter().enumerate() {
             if blvm_sdk::governance::verify_signature(signature, &message_bytes, public_key)? {
-                verified = true;
+                if seen_keys.insert(index) {
+                    valid_signatures += 1;
+                }
+                matched = true;
                 break;
             }
         }
-        if verified {
-            valid_signatures += 1;
-        } else {
+        if !matched {
             invalid_signatures += 1;
         }
     }
@@ -220,7 +226,7 @@ fn format_verification_output(
 ) -> String {
     if args.format == OutputFormat::Json {
         let output_data = serde_json::json!({
-            "success": true,
+            "success": result.threshold_met,
             "message": result.message.description(),
             "valid_signatures": result.valid_signatures,
             "invalid_signatures": result.invalid_signatures,
@@ -239,5 +245,38 @@ fn format_verification_output(
         ));
         output.push_str(&format!("Threshold met: {}\n", result.threshold_met));
         output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn json_success_follows_the_threshold() {
+        let args = Args {
+            format: OutputFormat::Json,
+            message: MessageCommand::Release {
+                version: "1".into(),
+                commit: "abc".into(),
+            },
+            signatures: "sig.json".into(),
+            threshold: Some("2-of-3".into()),
+            pubkeys: None,
+        };
+        let formatter = OutputFormatter::new(OutputFormat::Json);
+        let missed = VerificationResult {
+            message: GovernanceMessage::Release {
+                version: "1".into(),
+                commit_hash: "abc".into(),
+            },
+            valid_signatures: 1,
+            invalid_signatures: 0,
+            threshold_met: false,
+        };
+        let output = format_verification_output(&missed, &args, &formatter);
+        let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["success"], false);
+        assert_eq!(parsed["threshold_met"], false);
     }
 }

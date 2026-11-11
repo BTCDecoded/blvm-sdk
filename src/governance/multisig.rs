@@ -73,12 +73,15 @@ impl Multisig {
         signatures: &[Signature],
     ) -> GovernanceResult<Vec<usize>> {
         let mut valid_indices = Vec::new();
+        let mut seen_keys = HashSet::new();
 
         for signature in signatures.iter() {
-            // Try to verify against each public key
+            // One key counts once. A repeated signature is the same signer.
             for (j, public_key) in self.public_keys.iter().enumerate() {
                 if crate::governance::verify_signature(signature, message, public_key)? {
-                    valid_indices.push(j);
+                    if seen_keys.insert(j) {
+                        valid_indices.push(j);
+                    }
                     break;
                 }
             }
@@ -188,6 +191,24 @@ mod tests {
 
         let result = multisig.verify(message, &signatures);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn a_repeated_signature_counts_once() {
+        let keypairs: Vec<_> = (0..3)
+            .map(|_| GovernanceKeypair::generate().unwrap())
+            .collect();
+        let public_keys: Vec<_> = keypairs.iter().map(|kp| kp.public_key()).collect();
+        let multisig = Multisig::new(2, 3, public_keys).unwrap();
+        let message = b"release";
+        let signature = crate::sign_message(&keypairs[0].secret_key, message).unwrap();
+        let signatures = vec![signature.clone(), signature];
+
+        let indices = multisig
+            .collect_valid_signatures(message, &signatures)
+            .unwrap();
+        assert_eq!(indices, vec![0]);
+        assert_eq!(multisig.verify(message, &signatures).unwrap(), false);
     }
 
     #[test]

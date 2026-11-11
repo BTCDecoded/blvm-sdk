@@ -98,8 +98,9 @@ impl NestedMultisig {
         let mut team_details = Vec::new();
 
         for team in &self.teams {
-            // Verify signatures for this team
+            // Verify signatures for this team. Each maintainer counts once.
             let mut valid_sigs = 0;
+            let mut seen_maintainers = std::collections::HashSet::new();
             if let Some(sigs) = team_signatures.get(&team.id) {
                 for (github, sig) in sigs {
                     // Find maintainer's public key
@@ -109,7 +110,8 @@ impl NestedMultisig {
                             sig,
                             message,
                             &maintainer.public_key,
-                        )? {
+                        )? && seen_maintainers.insert(github.clone())
+                        {
                             valid_sigs += 1;
                         }
                     }
@@ -165,6 +167,42 @@ pub struct NestedMultisigResult {
     pub maintainers_required: usize,
     pub inter_team_approved: bool,
     pub team_details: Vec<TeamApprovalStatus>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::governance::GovernanceKeypair;
+
+    #[test]
+    fn a_repeated_maintainer_counts_once() {
+        let alice = GovernanceKeypair::generate().unwrap();
+        let bob = GovernanceKeypair::generate().unwrap();
+        let message = b"nested release";
+        let alice_sig = crate::sign_message(&alice.secret_key, message).unwrap();
+        let team = Team {
+            id: "core".into(),
+            name: "core".into(),
+            maintainers: vec![
+                TeamMaintainer {
+                    github: "alice".into(),
+                    public_key: alice.public_key(),
+                },
+                TeamMaintainer {
+                    github: "bob".into(),
+                    public_key: bob.public_key(),
+                },
+            ],
+        };
+        let nested = NestedMultisig::new(vec![team], 1, 2).unwrap();
+        let entries = vec![
+            ("alice".into(), alice_sig.clone()),
+            ("alice".into(), alice_sig),
+        ];
+        let result = nested.verify(message, &entries).unwrap();
+        assert_eq!(result.team_details[0].maintainers_signed, 1);
+        assert!(!result.inter_team_approved);
+    }
 }
 
 #[derive(Debug, Clone)]

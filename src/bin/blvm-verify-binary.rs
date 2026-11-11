@@ -10,6 +10,7 @@ use blvm_sdk::cli::output::{OutputFormat, OutputFormatter};
 use blvm_sdk::governance::{Multisig, PublicKey, Signature};
 use clap::{Parser, Subcommand};
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -199,13 +200,17 @@ fn verify_target(args: &Args) -> Result<VerificationResult, Box<dyn std::error::
     let mut valid_signatures = 0;
     let mut invalid_signatures = 0;
     let mut errors = Vec::new();
+    let mut seen_keys = HashSet::new();
 
     for signature in &signatures {
-        let mut verified = false;
-        for public_key in &public_keys {
+        let mut matched = false;
+        for (index, public_key) in public_keys.iter().enumerate() {
             match blvm_sdk::governance::verify_signature(signature, &message_bytes, public_key) {
                 Ok(true) => {
-                    verified = true;
+                    if seen_keys.insert(index) {
+                        valid_signatures += 1;
+                    }
+                    matched = true;
                     break;
                 }
                 Ok(false) => continue,
@@ -215,9 +220,7 @@ fn verify_target(args: &Args) -> Result<VerificationResult, Box<dyn std::error::
                 }
             }
         }
-        if verified {
-            valid_signatures += 1;
-        } else {
+        if !matched {
             invalid_signatures += 1;
         }
     }

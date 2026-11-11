@@ -58,7 +58,7 @@ fn main() {
 struct AggregationResult {
     signature_count: usize,
     output_file: String,
-    threshold_met: bool,
+    recorded_threshold: Option<String>,
 }
 
 fn aggregate_signatures(args: &Args) -> Result<AggregationResult, Box<dyn std::error::Error>> {
@@ -105,28 +105,12 @@ fn aggregate_signatures(args: &Args) -> Result<AggregationResult, Box<dyn std::e
     let json_str = serde_json::to_string_pretty(&aggregated)?;
     fs::write(&args.output, json_str)?;
 
-    // Check threshold if provided
-    let threshold_met = if let Some(threshold_str) = &args.threshold {
-        let parts: Vec<&str> = threshold_str.split("-of-").collect();
-        if parts.len() == 2 {
-            if let (Ok(required), Ok(_total)) =
-                (parts[0].parse::<usize>(), parts[1].parse::<usize>())
-            {
-                signatures.len() >= required
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        true // No threshold specified, assume met if we have signatures
-    };
-
+    // This tool stores signature files. It does not check them. `blvm-verify`
+    // is the threshold check, and it counts each public key once.
     Ok(AggregationResult {
         signature_count: signatures.len(),
         output_file: args.output.clone(),
-        threshold_met,
+        recorded_threshold: args.threshold.clone(),
     })
 }
 
@@ -139,20 +123,20 @@ fn format_aggregation_output(
         let output_data = serde_json::json!({
             "success": true,
             "signature_count": result.signature_count,
-            "threshold_met": result.threshold_met,
+            "threshold_checked": false,
+            "recorded_threshold": result.recorded_threshold,
             "output_file": result.output_file,
         });
         formatter
             .format(&output_data)
             .unwrap_or_else(|_| "{}".to_string())
     } else {
+        let recorded = result.recorded_threshold.as_deref().unwrap_or("none");
         format!(
             "Aggregated {} signatures\n\
-             Threshold met: {}\n\
+             Threshold recorded: {recorded} (not verified)\n\
              Saved to: {}\n",
-            result.signature_count,
-            if result.threshold_met { "Yes" } else { "No" },
-            result.output_file
+            result.signature_count, result.output_file
         )
     }
 }
