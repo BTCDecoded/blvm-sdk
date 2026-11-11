@@ -208,7 +208,7 @@ mod tests {
             .collect_valid_signatures(message, &signatures)
             .unwrap();
         assert_eq!(indices, vec![0]);
-        assert_eq!(multisig.verify(message, &signatures).unwrap(), false);
+        assert!(!multisig.verify(message, &signatures).unwrap());
     }
 
     #[test]
