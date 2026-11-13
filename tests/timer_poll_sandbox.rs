@@ -37,7 +37,7 @@ async fn upstream_poll_example_runs_in_the_module_sandbox() {
     let mut server = ModuleIpcServer::new(&socket).with_timer_service(service.clone());
     let ipc = server.handle();
     service
-        .set_transport(Arc::new(IpcTimerTransport::new(ipc)))
+        .set_transport(Arc::new(IpcTimerTransport::new(ipc.clone())))
         .await;
     let api = Arc::new(api);
     let server = tokio::spawn(async move { server.start(api).await });
@@ -66,6 +66,7 @@ async fn upstream_poll_example_runs_in_the_module_sandbox() {
     sandbox_config.resource_limits.max_child_processes = None;
     let sandbox = ProcessSandbox::new(sandbox_config);
     let module_id = format!("timerpoll_{}", "ab".repeat(16));
+    ipc.issue_module_id(&module_id);
     let mut command = std::process::Command::new(&binary);
     command
         .env_clear()
