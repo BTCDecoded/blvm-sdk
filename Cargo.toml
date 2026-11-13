@@ -2,7 +2,7 @@
 name = "blvm-sdk"
 version = "0.1.23"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.91"
 authors = ["Bitcoin Commons Contributors"]
 description = "Bitcoin Commons software developer kit, governance infrastructure and composition framework for Bitcoin"
 license = "MIT"
