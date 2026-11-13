@@ -48,9 +48,6 @@ clap = { version = "=4.4.11", features = ["derive"] }
 
 # RUSTSEC-2026-0009: iroh/rcgen transitive; force >=0.3.47 (crates.io ships 0.3.47+).
 time = { version = ">=0.3.47", default-features = false }
-# Pin ed25519 + pkcs8: iroh via blvm-node → ed25519-dalek 3.0.0-pre.1 (same as blvm-node).
-ed25519 = "=3.0.0-rc.4"
-pkcs8 = "=0.11.0-rc.11"
 
 # Composition framework dependencies
 toml = "=0.8.2"

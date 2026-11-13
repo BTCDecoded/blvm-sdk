@@ -673,33 +673,32 @@ where
         }));
     }
 
-    if let Some(module_api) = module_api {
-        if let InvocationType::ModuleApi {
+    if let Some(module_api) = module_api
+        && let InvocationType::ModuleApi {
             method,
             params,
             caller_module_id,
         } = &invocation.invocation_type
+    {
+        let result = match module_api
+            .handle_request(method, params, caller_module_id)
+            .await
         {
-            let result = match module_api
-                .handle_request(method, params, caller_module_id)
-                .await
-            {
-                Ok(data) => InvocationResultMessage {
-                    correlation_id: invocation.correlation_id,
-                    success: true,
-                    payload: Some(InvocationResultPayload::ModuleApi(data)),
-                    error: None,
-                },
-                Err(err) => InvocationResultMessage {
-                    correlation_id: invocation.correlation_id,
-                    success: false,
-                    payload: None,
-                    error: Some(err.to_string()),
-                },
-            };
-            let _ = result_tx.send(result);
-            return None;
-        }
+            Ok(data) => InvocationResultMessage {
+                correlation_id: invocation.correlation_id,
+                success: true,
+                payload: Some(InvocationResultPayload::ModuleApi(data)),
+                error: None,
+            },
+            Err(err) => InvocationResultMessage {
+                correlation_id: invocation.correlation_id,
+                success: false,
+                payload: None,
+                error: Some(err.to_string()),
+            },
+        };
+        let _ = result_tx.send(result);
+        return None;
     }
 
     let result = dispatch(invocation, ctx.clone(), module, cli);

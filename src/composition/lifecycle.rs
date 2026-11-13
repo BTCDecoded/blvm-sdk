@@ -127,10 +127,10 @@ impl ModuleLifecycle {
     pub async fn get_module_status(&self, name: &str) -> Result<ModuleStatus> {
         let _ = self.registry.get_module(name, None)?;
 
-        if let Some(ref manager) = self.module_manager {
-            if let Some(state) = manager.lock().await.get_module_state(name).await {
-                return Ok(module_state_to_status(state));
-            }
+        if let Some(ref manager) = self.module_manager
+            && let Some(state) = manager.lock().await.get_module_state(name).await
+        {
+            return Ok(module_state_to_status(state));
         }
 
         Ok(self

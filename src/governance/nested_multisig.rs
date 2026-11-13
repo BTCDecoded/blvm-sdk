@@ -105,15 +105,14 @@ impl NestedMultisig {
                 for (github, sig) in sigs {
                     // Find maintainer's public key
                     if let Some(maintainer) = team.maintainers.iter().find(|m| m.github == *github)
-                    {
-                        if crate::governance::verify_signature(
+                        && crate::governance::verify_signature(
                             sig,
                             message,
                             &maintainer.public_key,
-                        )? && seen_maintainers.insert(github.clone())
-                        {
-                            valid_sigs += 1;
-                        }
+                        )?
+                        && seen_maintainers.insert(github.clone())
+                    {
+                        valid_sigs += 1;
                     }
                 }
             }

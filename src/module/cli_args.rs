@@ -90,15 +90,15 @@ fn find_param_by_long<'a>(specs: &'a [CliArgSpec], long: &'a str) -> &'a str {
 
 fn find_param_by_short<'a>(specs: &'a [CliArgSpec], short: &'a str) -> &'a str {
     for spec in specs {
-        if let Some(s) = &spec.short_name {
-            if s == short {
-                return &spec.name;
-            }
+        if let Some(s) = &spec.short_name
+            && s == short
+        {
+            return &spec.name;
         }
-        if let Some(c) = short.chars().next() {
-            if spec.name.starts_with(c) {
-                return &spec.name;
-            }
+        if let Some(c) = short.chars().next()
+            && spec.name.starts_with(c)
+        {
+            return &spec.name;
         }
     }
     short
