@@ -35,8 +35,8 @@ thiserror = "=1.0.69"
 hex = "=0.4.3"
 base64 = "=0.22"
 
-# Random number generation
-rand = "=0.8.5"
+# Random number generation. 0.8.5 is RUSTSEC-2026-0097.
+rand = "=0.8.6"
 
 # Date/time
 chrono = { version = "=0.4.35", features = ["serde"] }
