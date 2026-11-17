@@ -143,7 +143,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Configure linker (mold / lld / default)
         id: linker
@@ -238,7 +238,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Compile tests (no-run)
         env:
@@ -331,7 +331,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Clippy (default features)
         run: |
@@ -372,7 +372,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Check formatting
         run: |
@@ -443,7 +443,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Build docs (default features — faster)
         run: cargo doc --no-deps
@@ -478,7 +478,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Install cargo-audit
         run: |
@@ -525,7 +525,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Install nightly and cargo-fuzz
         run: |
@@ -652,7 +652,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Build release (default features — matches crates.io defaults)
         run: cargo build --release
@@ -702,7 +702,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Determine version
         id: version
@@ -1061,7 +1061,7 @@ jobs:
       - name: Install Rust
         uses: BTCDecoded/rust-ci/install-rust-toolchain@main
         with:
-          toolchain: 1.88.0
+          toolchain: 1.91.0
 
       - name: Checkout develop scripts (blvm)
         uses: actions/checkout@v6
