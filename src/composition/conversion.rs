@@ -66,6 +66,8 @@ impl From<ModuleInfo> for RefModuleMetadata {
             dependencies: info.dependencies,
             optional_dependencies: HashMap::new(), // ModuleInfo doesn't track optional deps separately
             entry_point: info.entry_point,
+            // `0` is the published-binary sandbox. ModuleInfo has no protocol field.
+            ipc_protocol: 0,
         }
     }
 }
