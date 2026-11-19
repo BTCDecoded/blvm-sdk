@@ -79,6 +79,7 @@ async fn wasm_guest_receives_new_block_and_reads_height() {
         dependencies: HashMap::new(),
         optional_dependencies: HashMap::new(),
         entry_point: "height-guest.wasm".to_string(),
+        ipc_protocol: 0,
     };
     manager
         .load_module("height-guest", &wasm_path, metadata, HashMap::new())
@@ -161,6 +162,7 @@ async fn wasm_guest_reads_block_with_read_blockchain() {
         dependencies: HashMap::new(),
         optional_dependencies: HashMap::new(),
         entry_point: "block-guest.wasm".to_string(),
+        ipc_protocol: 0,
     };
     manager
         .load_module("block-guest", &wasm_path, metadata, HashMap::new())
