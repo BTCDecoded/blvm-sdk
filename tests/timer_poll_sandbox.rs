@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use blvm_node::module::api::node_api::NodeApiImpl;
 use blvm_node::module::ipc::server::{IpcTimerTransport, ModuleIpcServer};
-use blvm_node::module::sandbox::landlock::ModuleLandlock;
+use blvm_node::module::sandbox::landlock::{ModuleLandlock, SandboxGeneration};
 use blvm_node::module::sandbox::{ProcessSandbox, SandboxConfig};
 use blvm_node::module::timers::service::TimerService;
 use blvm_node::module::timers::types::TimerConfig;
@@ -56,8 +56,14 @@ async fn upstream_poll_example_runs_in_the_module_sandbox() {
         .parent()
         .unwrap()
         .join("timer-poll");
-    let landlock = ModuleLandlock::prepare(&binary, &module_data, &socket, &modules_dir)
-        .expect("landlock domain");
+    let landlock = ModuleLandlock::prepare(
+        &binary,
+        &module_data,
+        &socket,
+        &modules_dir,
+        SandboxGeneration::Compat,
+    )
+    .expect("landlock domain");
     let mut sandbox_config = SandboxConfig::new(&data_dir);
     // RLIMIT_NPROC counts every thread of this user. The default of 10 is already
     // exceeded on this host, so a new thread cannot start. Memory and file-descriptor
