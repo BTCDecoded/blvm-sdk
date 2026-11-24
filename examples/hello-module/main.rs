@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = ModuleDb::open(&bootstrap.data_dir)?;
     db.run_migrations(&[(1, up_initial)])?;
 
-    let config = HelloConfig::load(bootstrap.data_dir.join("config.toml")).unwrap_or_default();
+    let config = HelloConfig::load(bootstrap.data_dir.join("config.toml"))?;
     let module = HelloModule { config };
 
     run_module! {

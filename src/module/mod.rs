@@ -22,6 +22,9 @@ pub mod storage;
 #[cfg(feature = "wasm-modules")]
 pub mod wasm;
 
+#[cfg(test)]
+mod config_load_tests;
+
 /// Minimal module entry point. Expands to full main with bootstrap, migrations, config load, run_module.
 ///
 /// **Single-arg form** (preferred when `#[module]` has `config` and `migrations`):
@@ -50,8 +53,7 @@ macro_rules! run_module_main {
             db.run_migrations(<$module_type as $crate::module::ModuleMeta>::migrations())?;
             let config = <<$module_type as $crate::module::ModuleMeta>::Config>::load(
                 bootstrap.data_dir.join("config.toml"),
-            )
-            .unwrap_or_default();
+            )?;
             let module = <$module_type as $crate::module::ModuleMeta>::__module_new(config);
             $crate::run_module! {
                 bootstrap: &bootstrap,
@@ -75,8 +77,7 @@ macro_rules! run_module_main {
             let bootstrap = $crate::module::ModuleBootstrap::from_env()?;
             let db = $crate::module::ModuleDb::open(&bootstrap.data_dir)?;
             db.run_migrations($migrations)?;
-            let config =
-                <$config_type>::load(bootstrap.data_dir.join("config.toml")).unwrap_or_default();
+            let config = <$config_type>::load(bootstrap.data_dir.join("config.toml"))?;
             let module = <$module_type>::__module_new(config);
             $crate::run_module! {
                 bootstrap: &bootstrap,

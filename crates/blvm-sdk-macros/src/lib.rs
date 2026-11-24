@@ -450,12 +450,16 @@ pub fn module_config(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             let load_block = quote! {
                 /// Load config from path (e.g. config.toml), apply env overrides.
+                /// A missing file is `Default`. A read or TOML error is returned.
                 /// Requires `#[derive(Default, Serialize, Deserialize)]` on the struct.
                 pub fn load(path: impl std::convert::AsRef<std::path::Path>) -> std::result::Result<Self, anyhow::Error> {
-                    let mut config: Self = std::fs::read_to_string(path.as_ref())
-                        .ok()
-                        .and_then(|s| toml::from_str(&s).ok())
-                        .unwrap_or_else(|| Self::default());
+                    let path = path.as_ref();
+                    let mut config = if path.exists() {
+                        let text = std::fs::read_to_string(path)?;
+                        toml::from_str(&text)?
+                    } else {
+                        Self::default()
+                    };
                     config.apply_env_overrides();
                     Ok(config)
                 }

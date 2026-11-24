@@ -114,13 +114,15 @@ impl ModuleBootstrap {
     }
 
     /// Load config from `{data_dir}/config.toml` and build ModuleContext. Convention for setup closures.
+    ///
+    /// A missing file uses `C::default()`. A file that does not parse is an error.
     #[cfg(feature = "node")]
     pub fn context_with_config<C: ModuleConfig>(
         &self,
         data_dir: &Path,
-    ) -> (blvm_node::module::traits::ModuleContext, C) {
-        let config = C::load_config(data_dir.join("config.toml")).unwrap_or_default();
+    ) -> anyhow::Result<(blvm_node::module::traits::ModuleContext, C)> {
+        let config = C::load_config(data_dir.join("config.toml"))?;
         let ctx = self.context(data_dir, config.config_map());
-        (ctx, config)
+        Ok((ctx, config))
     }
 }
